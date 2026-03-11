@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* ── Global resets & custom tokens ─────────────────────── */
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #050505;
+  color: #e2e8f0; /* slate-200 */
+  overscroll-behavior: none; /* prevents pull-to-refresh interfering with swipe */
+}
+
+/* ── Safe-areas for iPhone notch / Dynamic Island ──────── */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Prevent text selection during swipe ───────────────── */
+.cursor-grab * {
+  user-select: none;
+}
+
+/* ── Scrollbar styling ──────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-700 */
+  border-radius: 9999px;
+}
