@@ -17,6 +17,7 @@
     "vite-plugin-pwa": "^1.2.0"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-react": "^5.1.4",
     "firebase": "^12.10.0",
     "framer-motion": "^12.35.2",
