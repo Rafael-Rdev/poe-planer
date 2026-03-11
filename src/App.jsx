@@ -83,16 +83,19 @@ export default function App() {
       'Aufstieg 1 (Labor): <span class="text-orange-400 font-bold underline">Tasalio, Stille des Wassers</span> wählen (Häuptling).',
       'Nach Pietys erstem Tod: <span class="text-blue-400 font-bold">Reinheit der Elemente</span> kaufen → Immunität gegen Gefrierpunkt & Schock.',
       '<span class="text-red-500 font-black italic">PFLICHT-REGEL:</span> Auren (Vitalität, Reinheit der Elemente) NIEMALS mit Unterstützungsgemmen verlinken!',
-      'Bibliothek aufsuchen (Pflicht!): Kaufen: <span class="text-yellow-400 font-bold">Feuerfalle, Effizienz, Elementarer Fokus, Schneller Schadenseffekt, Fallenschaden, Feuer-Schaden</span>.',
+      'Bibliothek aufsuchen (nach Piety 2. Tod – Pflicht für Unterstützungsgemmen!). Kaufen: <span class="text-yellow-400 font-bold">Feuerfalle, Effizienz, Elementarer Fokus, Schneller Schadenseffekt, Fallenschaden, Feuerschaden</span>. Alternative: Armagedon-Siegel statt Rollender Magmakugel.',
+      'Feuerfalle sofort in <span class="text-white font-bold">Waffentausch legen</span> mit grüner Sockelfarbe → auf der Seite leveln lassen!',
       'Flammbarkeit + Lebensabgriff verlinken → Fluch kostet Leben statt Mana. Dann Flammenwand entfernen.',
-      '4-Link Helm/Handschuhe für Gerechtes Feuer gamble/suchen: <span class="text-white font-bold">3 Blaue + 1 Rote</span> Sockelfarbe.',
+      '4-Link gamble: Helm oder Handschuhe (<span class="text-blue-400 font-bold">Rüstung+Energieschild</span>) → Ziel: <span class="text-white font-bold">3 Blau + 1 Rot</span> für Gerechtes Feuer.',
     ]},
-    { id: 4, act: 'Akt 4–5', title: 'Feuerfalle & Baumschwung', done: false, steps: [
-      'Aufstieg 2 (Grausames Labor): Wähle <span class="text-purple-400 font-bold">Hinekora, Zorn des Todes</span> (Map-Aufräumung) oder <span class="text-orange-400 font-bold">Ramako, Licht der Sonne</span> (mehr Schaden).',
-      'Rollende Magmakugel gegen <span class="text-yellow-400 font-bold">Feuerfalle</span> tauschen (ca. Lvl 40). 4-Link: Rüstung+Ausweichung (2Grün, 1Blau, 1Rot).',
-      'Quest nach Daresso & Kaom: <span class="text-white font-bold">Vergrößerter Wirkungsbereich</span> Unterstützung holen → Ersetzt Effizienz in RF.',
-      'Wenn Ramako: Verbrennung ersetzen durch <span class="text-green-400 font-bold">Schneller Schadenseffekt</span>. Fluch wechseln zu <span class="text-yellow-400 font-bold">Bestrafung</span>.',
-      'Wenn Hinekora: Änderungen kommen nach Gnadenlosem Labor (Lvl 65).',
+    { id: 4, act: 'Akt 4–5', title: 'Feuerfalle & Golem', done: false, steps: [
+      'Erste Akt-4-Quest abschließen → <span class="text-green-400 font-bold">Steingolem</span> als Begleiter wählen (+Rüstung & Leben-Regen).',
+      'Ca. Lvl 40: Rollende Magmakugel durch <span class="text-yellow-400 font-bold">Feuerfalle</span> ersetzen. 4-Link: <span class="text-white font-bold">Rüstung+Ausweichung (2G/1B/1R)</span>. Mit Ramako später: 3G/1R.',
+      'Falls zu wenig Geschicklichkeit für Feuerfalle: Türkis-Amulett kaufen oder +30-Geschicklichkeit-Knoten bei Groll aktivieren.',
+      'Quest nach Daresso & Kaom: <span class="text-white font-bold">Vergrößerter Wirkungsbereich</span> holen → Ersetzt Effizienz in RF.',
+      'Aufstieg 2 (Grausames Labor): <span class="text-purple-400 font-bold">Hinekora, Zorn des Todes</span> (schnelle Map-Aufräumung) oder <span class="text-orange-400 font-bold">Ramako, Licht der Sonne</span> (höherer Schaden).',
+      'Wenn Ramako: Verbrennung → <span class="text-green-400 font-bold">Schneller Schadenseffekt</span>. Fluch → <span class="text-yellow-400 font-bold">Bestrafung</span>.',
+      'Wenn Hinekora: Obige Änderungen nach Gnadenlosem Labor (Lvl 65).',
     ]},
   ]);
 
@@ -296,16 +299,21 @@ export default function App() {
                     <SectionTitle icon={Package} label="Günstige Uniques (Kampagne)" color="text-orange-400" />
                     <div className="space-y-3">
                       {[
-                        { n: 'Ascheschreier',          d: 'Bestes Akt-1-Waffe! Impliziter Feuerschaden.', l: 'Lvl 6',  hot: true  },
-                        { n: 'Ziegenhorn',              d: 'Händler Akt 1. +Feuerschaden implizit.',        l: 'Akt 1', hot: true  },
-                        { n: 'Kikazaru',                d: 'Wenn RF schwer zu halten ist.',                l: 'Lvl 20' },
-                        { n: 'Pyre',                    d: 'Mehr Schaden statt Sustain.',                  l: 'Lvl 11' },
-                        { n: 'Goldfelge',               d: 'Großartige Resistenzen früh.',                 l: 'Lvl 1'  },
-                        { n: 'Tausend Bänder',          d: 'Flacher Ele-Schaden, gut in Akt 1.',          l: 'Lvl 1'  },
-                        { n: 'Siebenmeilenstiefel',     d: 'Zoomer-Boots! 50% Bewegungstempo.',            l: 'Lvl 1'  },
-                        { n: 'Mantel der Flamme',       d: 'Bis Lvl 100 spielbar! Beste Rüstung.',        l: 'Lvl 18', hot: true },
-                        { n: 'Replika: Atziris Schwäche', d: 'Extreme Regeneration.',                     l: 'Lvl 16' },
-                        { n: 'Xophs Herz',              d: 'Massiv Leben & Feuerschaden.',                l: 'Lvl 5'  },
+                        { n: 'Ascheschreier',            d: 'Bestes Akt-1-Waffe! Impliziter Feuerschaden.', l: 'Lvl 6',  hot: true },
+                        { n: 'Ziegenhorn',               d: 'Händler Akt 1. +Feuerschaden implizit.',        l: 'Akt 1', hot: true },
+                        { n: 'Kikazaru',                 d: 'Wenn RF schwer zu halten ist.',                l: 'Lvl 20' },
+                        { n: 'Pyre',                     d: 'Mehr Schaden statt Sustain.',                  l: 'Lvl 11' },
+                        { n: 'Goldfelge',                d: 'Großartige Resistenzen früh.',                 l: 'Lvl 1'  },
+                        { n: 'Frühlingsblatt',           d: 'Gut für frühe Regen.',                         l: 'Lvl 7'  },
+                        { n: 'Wanderlust',               d: 'Gute Boots: Movement Speed & Gefrierimmunität.',l: 'Lvl 1'  },
+                        { n: 'Tausend Bänder',           d: 'Flacher Ele-Schaden, gut in Akt 1.',          l: 'Lvl 1'  },
+                        { n: 'Perandus-Siegel',          d: 'Gute Attribute & Feuer-Resistenz.',            l: 'Lvl 16' },
+                        { n: 'Siebenmeilenstiefel',      d: 'Zoomer-Boots! 50% Bewegungstempo.',            l: 'Lvl 1'  },
+                        { n: 'Mantel der Flamme',        d: 'Bis Lvl 100 spielbar! Beste Rüstung.',        l: 'Lvl 18', hot: true },
+                        { n: 'Replika: Atziris Schwäche',d: 'Extreme Regeneration.',                       l: 'Lvl 16' },
+                        { n: 'Replika: Karui-Wächter',   d: 'Großartiger Schaden + AoE. Transmutes sammeln!',l: 'Lvl 5' },
+                        { n: 'Xophs Herz',               d: 'Massiv Leben & Feuerschaden.',                l: 'Lvl 5'  },
+                        { n: 'Lochtonials Pflege',       d: 'Gute Handschuhe für Wirkgeschwindigkeit.',    l: 'Lvl 1'  },
                       ].map((u, i) => (
                         <div key={i} className="flex justify-between items-start">
                           <div className="flex-1 pr-4">
@@ -322,16 +330,24 @@ export default function App() {
                     <SectionTitle icon={Package} label="Späteres Gear (Maps / Endgame)" color="text-purple-400" />
                     <div className="space-y-3">
                       {[
-                        { n: 'Aufstieg des Phönix',    d: 'Einfachster Weg zu 90% Max-Resi. Exarch ist dann ein Witz!', l: 'Lvl 65' },
-                        { n: 'Unsterbliches Fleisch',   d: 'Bester Gürtel für Regen zum Preis.',                       l: 'Lvl 50' },
-                        { n: 'Granitgestühl',           d: 'Schnell leveln!',                                          l: 'Lvl 18' },
-                        { n: 'Annihilations Vorgehen',  d: 'Lieblingsboots – Website-FAQ beachten.',                   l: 'Lvl 95' },
-                        { n: 'Todesstöße',              d: 'Sehr gut für Adrenalin beim Craften.',                     l: 'Lvl 30' },
-                        { n: 'Lochtonials Pflege',      d: 'Gute Handschuhe für Angriffstempo.',                      l: 'Lvl 1'  },
-      	              ].map((u, i) => (
+                        { n: 'Aufstieg des Phönix',     d: 'Einfachster Weg zu 90% Max-Resi. Exarch ist ein Witz!', l: 'Lvl 65', hot: true },
+                        { n: 'Granitbrecher',           d: 'Falls gute Regen – für physische Schadensreduktion.', l: 'Lvl 67' },
+                        { n: 'Unsterbliches Fleisch',   d: 'Bester Gürtel für Regen zum Preis.',                  l: 'Lvl 50', hot: true },
+                        { n: 'Granitgestühl',           d: 'Gotta go Fast!',                                       l: 'Lvl 18' },
+                        { n: 'Annihilations Vorgehen',  d: 'Lieblingsboots – Website-FAQ beachten.',               l: 'Lvl 95' },
+                        { n: 'Todesstöße',              d: 'Sehr gut für Adrenalin für Maps.',                     l: 'Lvl 30' },
+                        { n: 'Schicksalstrotz',         d: 'Teuer aber tanky – Verlust an Schaden.',              l: 'Lvl 49' },
+                        { n: 'Agnostiker',              d: 'Für extreme Regeneration, aber Mana-Probleme.',        l: 'Lvl 68' },
+                        { n: 'Blutmagie-Amulett',       d: 'Händler Akt 2. +1 zu allen Fertigkeitsgemmen.',        l: 'Akt 2', hot: true },
+                        { n: 'Wut des Kriegsherrn',     d: 'Händler Akt 2. +1 zu allen Fertigkeitsgemmen.',        l: 'Akt 2', hot: true },
+                        { n: 'Stahlring',               d: 'Händler Akt 2. +1 zu allen Fertigkeitsgemmen.',        l: 'Akt 2', hot: true },
+                        { n: 'Meginords Gürtel',        d: 'Stärke, Leben, Kälte-Resi.',                          l: 'Lvl 8'  },
+                        { n: 'Goldenes Gefäß',          d: 'Guter Flask für Movement Speed.',                     l: 'Lvl 12' },
+                        { n: 'Karui-Schild',            d: 'Händler Akt 1. +1 zu allen Fertigkeitsgemmen.',        l: 'Akt 1', hot: true },
+                      ].map((u, i) => (
                         <div key={i} className="flex justify-between items-start">
                           <div className="flex-1 pr-4">
-                            <p className="font-bold text-sm text-slate-200">{u.n}</p>
+                            <p className={`font-bold text-sm ${u.hot ? 'text-purple-300' : 'text-slate-200'}`}>{u.n} {u.hot && '⭐'}</p>
                             <p className="text-[10px] text-slate-500">{u.d}</p>
                           </div>
                           <span className="bg-purple-500/10 text-purple-400 text-[10px] font-black px-2 py-1 rounded-lg shrink-0">{u.l}</span>
