@@ -97,6 +97,24 @@ export default function App() {
       'Wenn Ramako: Verbrennung → <span class="text-green-400 font-bold">Schneller Schadenseffekt</span>. Fluch → <span class="text-yellow-400 font-bold">Bestrafung</span>.',
       'Wenn Hinekora: Obige Änderungen nach Gnadenlosem Labor (Lvl 65).',
     ]},
+    { id: 5, act: 'Lvl 61–90', title: 'Maps starten & Pantheon', done: false, steps: [
+      'Nach Kampagnenende: <span class="text-blue-400 font-bold">/Passives</span> eingeben und prüfen ob alle Skillpunkte abgeholt wurden!',
+      'Gamble auf Handschuhe/Helm/Boots/Body für Upgrades. <span class="text-red-400 font-bold">NIEMALS</span> Waffe/Schmuck gamblen – Goldverschwendung!',
+      'Fokus bei Items: <span class="text-orange-400 font-bold">Hohes Leben + Feuer-Resi, Chaos-Resi, Lebens-Regenerationsrate</span> (Multiplikator auf flattes Leben-Regen!).',
+      '<span class="text-yellow-400 font-bold">Ausdauernder Schrei</span> nutzen → Ausdauerladungen generieren. Später passiv per Amulett-Anoint.',
+      'Aufstieg 3 (Uber-Labor): Nach Abschluss Göttliches Gefäß kaufen. Atlas: <span class="text-blue-400 font-bold">"Meeresgott"</span> suchen → Map mit "100% Chance zu vermeiden, eingefroren zu stehen" mit Göttlichem Gefäß ins Gerät legen & abschließen!',
+      'Aura-Wechsel nach Uber-Labor: <span class="text-purple-400 font-bold">Skitterbot + Ungebundene Qualen · Magieschild · Fleisch und Stein (Sandmodus) · Reinheit des Feuers</span>.',
+      'Jetzt: <span class="text-orange-400 font-bold">Unsterbliches Fleisch</span> Gürtel + <span class="text-orange-400 font-bold">Aufstieg des Phönix</span> kaufen → 90%+ maximale Resistenzen!',
+    ]},
+    { id: 6, act: 'Lvl 90+', title: 'Block-Setup & Entzündungs-Ausbreitung', done: false, steps: [
+      '<span class="text-purple-400 font-bold">Schaper-Schild</span> finden/kaufen (bevorzugt Rüstungsschild: Zinnen-, Ezomlythen- oder Grober Turmschild).',
+      'Schild craften bis: <span class="text-green-400 font-bold">"3-5% Leben bei Block wiederherstellen"</span> – mit Unberührten Lebensfossilien oder Ernte-Leben-Neuberechnung.',
+      'Passivbaum: Block-Knoten nehmen + Schlüsselstein <span class="text-yellow-400 font-bold">"Abschreckende Schläge"</span> aktivieren → 75% Block & Zauberblock!',
+      '<span class="text-orange-400 font-bold">Entzündungs-Ausbreitung</span> auf Handschuhe via Exarch-Glut rollen (1/50 Chance) → Hinekora-Explosion kann Entzünden = massiver Clear!',
+      '<span class="text-blue-400 font-bold">6 Leben-Meisterschaften</span> alle auf einmal nehmen – viele geben allein keinen Bonus, zusammen machen sie deinen Charakter extrem tanky (7k+ Leben möglich).',
+      '<span class="text-orange-400 font-bold">Mantel der Flamme</span> kaufen → hilft bei großen physischen Treffern.',
+      'Hinweis: Golems sterben in gelben Maps häufig – nicht unnötig Gold investieren.',
+    ]},
   ]);
 
   const progress = Math.round((acts.filter(a => a.done).length / acts.length) * 100);
@@ -469,14 +487,54 @@ export default function App() {
                     </div>
                   </Card>
 
-                  {/* Todesfehler */}
+                  {/* Jewel Guide */}
+                  <Card>
+                    <SectionTitle icon={Gem} label="Juwelen (worauf achten?)" color="text-cyan-400" />
+                    <div className="space-y-3">
+                      <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                        <p className="text-cyan-400 font-bold text-xs uppercase tracking-widest mb-2">Prefix (Wertvolles)</p>
+                        <p className="text-[12px] text-slate-300">Leben · Feuerschaden</p>
+                      </div>
+                      <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                        <p className="text-purple-400 font-bold text-xs uppercase tracking-widest mb-2">Suffix (Wertvolles)</p>
+                        <p className="text-[12px] text-slate-300">Erhöhter Schaden · Feuerschaden-über-Zeit-Mult · Flächenschaden · Brennschaden · Chaos-Resistenz · Geschicklichkeit</p>
+                      </div>
+                      <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                        <p className="text-orange-400 font-bold text-xs uppercase tracking-widest mb-2">Große Cluster-Juwelen</p>
+                        <p className="text-[12px] text-slate-300">"Prismatisches Herz" oder "Lodernde Helligkeit" vorne. Alternativ: 12-Passive-Cluster für +Leben & Chaos-Resi craften.</p>
+                      </div>
+                      <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                        <p className="text-yellow-400 font-bold text-xs uppercase tracking-widest mb-2">Mittlere Cluster-Juwelen</p>
+                        <p className="text-[12px] text-slate-300">"Lebensfluss" + beliebige Kombination.</p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Mana FAQ */}
+                  <Card>
+                    <SectionTitle icon={AlertTriangle} label="Kein Mana für alle Auren?" color="text-yellow-400" />
+                    <div className="space-y-2">
+                      {[
+                        'Auren NIEMALS mit Lebensabgriff oder anderen Supports verlinken (außer explizit im PoB, z.B. Skitterbot + Ungebundene Qualen).',
+                        'ALLE Reservierungs-Knoten aus dem PoB nehmen – dreimal prüfen!',
+                        'PoB Loadout-Feature (oben rechts) nutzen – stellt sicher dass man die richtige Ausrüstung betrachtet.',
+                        'Bei manchen Setups: Schild mit Gemm-Reservierung nutzen. Skills-Bereich im PoB zeigt welche Gemme wohin kommt.'
+                      ].map((t, i) => (
+                        <div key={i} className="flex gap-2 text-[12px] text-slate-400">
+                          <ChevronRight className="w-3.5 h-3.5 text-yellow-500 mt-0.5 shrink-0" /><p>{t}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {/* Tödlicher Aura-Fehler */}
                   <div className="bg-red-500/10 border-2 border-red-500/20 rounded-[2.5rem] p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12"><Skull className="w-20 h-20 text-red-500" /></div>
                     <h3 className="text-red-500 font-black uppercase text-xs mb-3 tracking-widest flex items-center animate-pulse gap-2">
                       <AlertTriangle className="w-5 h-5" /> Tödlicher Anfängerfehler
                     </h3>
                     <p className="text-[13px] text-slate-200 font-bold leading-relaxed relative z-10">
-                      Verlinke <span className="underline decoration-red-500">NIEMALS</span> Auren mit Unterstützungsgemmen (außer es steht explizit im PoB z.B. Skitterbot + Ungebundene Qualen). Mana-Reservierung auf 100%+ = sofort handlungsunfähig!
+                      Verlinke <span className="underline decoration-red-500">NIEMALS</span> Auren mit Unterstützungsgemmen (außer explizit im PoB z.B. Skitterbot + Ungebundene Qualen). Mana-Reservierung auf 100%+ = sofort handlungsunfähig!
                     </p>
                   </div>
                 </motion.div>
