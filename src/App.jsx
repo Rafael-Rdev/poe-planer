@@ -3,10 +3,10 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import {
-  Flame, ListTodo, ChevronRight,
-  Package, Gem, Copy, Check, Trash2,
-  Beaker, Skull, AlertTriangle, FastForward,
-  LayoutDashboard, Swords, Shield, Star, ThumbsUp, ThumbsDown, Zap
+  Flame, ListTodo, ChevronRight, Package, Gem,
+  Copy, Check, Trash2, Beaker, Skull, AlertTriangle,
+  FastForward, LayoutDashboard, Swords, Shield,
+  Star, ThumbsUp, ThumbsDown, Zap, Map
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,25 +23,38 @@ let app, auth, db;
 try { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); } catch {}
 const APP_ID = 'poe-mirage-helper';
 
-// ─── Shared Card Component ────────────────────────────────
+// ── Shared Components ─────────────────────────────────────
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-6 ${className}`}>
-    {children}
-  </div>
+  <div className={`bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-6 ${className}`}>{children}</div>
 );
 const SectionTitle = ({ icon: Icon, label, color = 'text-orange-400' }) => (
   <h3 className={`${color} font-black uppercase text-xs mb-4 tracking-widest flex items-center gap-2 border-b border-white/5 pb-2`}>
-    <Icon className="w-4 h-4" /> {label}
+    <Icon className="w-4 h-4" />{label}
   </h3>
+);
+const GemLink = ({ name, supports = [], tip, nameColor = 'text-orange-300' }) => (
+  <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+    <p className={`font-black text-sm mb-2 ${nameColor}`}>{name}</p>
+    {supports.length > 0 && (
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {supports.map((s, i) => (
+          <span key={i} className="bg-white/5 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+            <span className="text-slate-600">└</span>{s}
+          </span>
+        ))}
+      </div>
+    )}
+    {tip && <p className="text-[11px] text-slate-500 italic">{tip}</p>}
+  </div>
 );
 
 export default function App() {
-  const [showSplash, setShowSplash]               = useState(true);
-  const [activeTab,  setActiveTab]                = useState('guide');
-  const [user,       setUser]                     = useState(null);
-  const [syncStatus, setSyncStatus]               = useState('offline');
-  const [copied,     setCopied]                   = useState(false);
-  const [showReset,  setShowReset]                = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [activeTab,  setActiveTab]  = useState('guide');
+  const [user,       setUser]       = useState(null);
+  const [syncStatus, setSyncStatus] = useState('offline');
+  const [copied,     setCopied]     = useState(false);
+  const [showReset,  setShowReset]  = useState(false);
 
   const regexString = '"-w-.-|b-b-b|g-g-r|g-r-g|r-g-g|.*(?=\\S*r)(?=\\S*g)(?=\\S*b)|r-r-[gb]|r-[gb]-r|[gb]-r-r|Runn|rint|me Sh|at\'s h|lap|Earn|(o |d |r)int"';
 
@@ -49,27 +62,37 @@ export default function App() {
   const handleCopy = () => { navigator.clipboard.writeText(regexString); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const [acts, setActs] = useState([
-    { id: 1, act: 'Akt 1', title: 'Start & Rollende Magmakugel', done: false, steps: [
-      'MULE-TRICK: Hexe erstellen (Lvl 4). Kaufe <span class="text-orange-300 font-bold">Rollende Magmakugel</span>, Frostspurt, Arkane Woge, Flammenwand &amp; Elementare Ausweitung.',
-      '<span class="text-red-400 font-bold">SPERRE:</span> Rollende Magmakugel auf Hexe NICHT leveln (Lvl 1 lassen!).',
-      'Händler: Kaufe zwei <span class="text-orange-400 font-bold italic">Ziegenhorn</span> – selbst weiße geben +50% Feuerschaden durch den impliziten Wert!',
-      'Rezept: Eisenring + rote Gemme = <span class="text-orange-400 font-bold underline">Rubinring</span>. Zweimal machen!',
-      'Feuerwand nutzen: Rollende Magmakugel immer <span class="text-white font-bold">durch die Flammenwand schießen</span> für massiven Schadensbonus.',
+    { id: 1, act: 'Akt 1', title: 'Hexen-Mule & Rollende Magmakugel', done: false, steps: [
+      '<span class="text-yellow-400 font-bold">MULE-TRICK:</span> Neue Hexe erstellen (Lvl 4), Quests "Breaking som..." & "Mercy Mission" abschließen. Dann kaufen: <span class="text-orange-300 font-bold">Rollende Magmakugel, Arkanewoge, Flammenwand, Elementare Ausweitung, Frostblinken</span>.',
+      '<span class="text-red-400 font-bold">SPERRE:</span> Rollende Magmakugel auf Hexe NICHT leveln – Lvl 1 lassen!',
+      'Händler aktiv prüfen: <span class="text-orange-400 font-bold italic">Ziegenhorn-Zauberstäbe</span> kaufen (weißer reicht – impliziter Feuerschaden verdoppelt deinen Schaden!).',
+      'Rezept 2×: Eisenring + rote Gemme im Händler-Fenster ablegen → Tausch abwarten → <span class="text-orange-400 font-bold underline">Rubinring</span> erhalten. Zweimal machen!',
+      'Blaue Items unidentifiziert verkaufen → <span class="text-blue-400 font-bold">Transmutationskugeln</span> sammeln (mind. 4 bis Akt 2 für Feuer-Resi-Craften).',
+      'Rollende Magmakugel immer <span class="text-white font-bold">durch die Flammenwand schießen</span> für massiven Schadensbonus.',
     ]},
-    { id: 2, act: 'Akt 2', title: 'Gerechtes Feuer & Kraityn', done: false, steps: [
+    { id: 2, act: 'Akt 2', title: 'Gerechtes Feuer aktivieren (Ziel: 120% Resi)', done: false, steps: [
       'Quest "Eindringlinge in Schwarz" abschließen → <span class="text-orange-400 font-bold">Gerechtes Feuer</span> bei Yeena kaufen.',
-      'Banditen: <span class="text-green-400 font-black uppercase underline">Kraityn helfen</span> → +8% Lauftempo (Pflicht fürs schnelle Leveln!)',
-      'Waffe tauschen: Auf <span class="text-white font-bold">Schild &amp; Schildsturm</span> wechseln. Durch Gegner stürmen statt laufen.',
-      'Aura: <span class="text-yellow-400 font-bold">Herold des Donners</span> kaufen → Schock verstärkt RF-Schaden.',
-      'Ziel: <span class="text-red-400 font-black underline">120%+ Feuer-Resistenz</span> → Mastery "1 Leben/Sek. pro ungedeckelter Feuer-Resi" = Pflicht!',
-      'Rezept x2: 2× Eisenring + 2× rote Gemme = 2× Rubinring. Auf <span class="text-white font-bold">Feuer-Resi craften</span> nicht vergessen!',
-      'Optional: <span class="text-purple-400 font-bold">Blutdurst</span> kaufen → Rasereisladungen bei Kill (+4% Schaden/Ladung), aber zusätzliches Degen-Risiko.',
+      'Banditen: <span class="text-green-400 font-black uppercase underline">Kraityn helfen</span> → +8% Lauftempo. (Alternative: Alle töten = 1 Skillpunkt, gut für Einsteiger.)',
+      'Auf jedes offene Suffix <span class="text-red-400 font-bold">"Feuer-Resistenz"</span> craften (Werkbank, 1 Transmute). Ziel: 120%+!',
+      'Mastery aktivieren: <span class="text-yellow-400 font-bold">"1 Leben/Sek. pro ungedeckelter Feuer-Widerstand"</span> – 125% Resi = 125 Leben/Sek. Regeneration. Pflicht!',
+      'Waffe tauschen: Auf <span class="text-white font-bold">Schild + Schildsturm</span> wechseln.',
+      'Optional: <span class="text-yellow-400 font-bold">Herold des Donners</span> kaufen → Schock verstärkt RF-Schaden.',
+      'Optional: <span class="text-purple-400 font-bold">Blutdurst</span> kaufen → Rasereisladungen bei Kill (+4% Schaden/Ladung).',
     ]},
-    { id: 3, act: 'Akt 3', title: 'Labyrinth & Auren-Regel', done: false, steps: [
-      'Labyrinth 1: Aufstieg wählen → <span class="text-orange-400 font-bold underline">Tasalio, Stille des Wassers</span> (Häuptling).',
-      '<span class="text-red-500 font-black italic">ACHTUNG:</span> Auren (Vitalität, Reinheit der Elemente) NIEMALS mit Unterstützungsgemmen verlinken! Mana-Reservierung steigt sonst auf 100%+.',
-      'Aura kaufen: <span class="text-blue-400 font-bold">Reinheit der Elemente</span> → Immunität gegen Gefrierpunkt &amp; Schock.',
-      'Spielablauf: Schildsturm → Bestrafung bei blauen Gegnerpacks → Feuerfalle für Einzelziele → Frostblinken zur Neupositionierung.',
+    { id: 3, act: 'Akt 3', title: 'Bibliothek & Auren-Pflicht', done: false, steps: [
+      'Aufstieg 1 (Labor): <span class="text-orange-400 font-bold underline">Tasalio, Stille des Wassers</span> wählen (Häuptling).',
+      'Nach Pietys erstem Tod: <span class="text-blue-400 font-bold">Reinheit der Elemente</span> kaufen → Immunität gegen Gefrierpunkt & Schock.',
+      '<span class="text-red-500 font-black italic">PFLICHT-REGEL:</span> Auren (Vitalität, Reinheit der Elemente) NIEMALS mit Unterstützungsgemmen verlinken!',
+      'Bibliothek aufsuchen (Pflicht!): Kaufen: <span class="text-yellow-400 font-bold">Feuerfalle, Effizienz, Elementarer Fokus, Schneller Schadenseffekt, Fallenschaden, Feuer-Schaden</span>.',
+      'Flammbarkeit + Lebensabgriff verlinken → Fluch kostet Leben statt Mana. Dann Flammenwand entfernen.',
+      '4-Link Helm/Handschuhe für Gerechtes Feuer gamble/suchen: <span class="text-white font-bold">3 Blaue + 1 Rote</span> Sockelfarbe.',
+    ]},
+    { id: 4, act: 'Akt 4–5', title: 'Feuerfalle & Baumschwung', done: false, steps: [
+      'Aufstieg 2 (Grausames Labor): Wähle <span class="text-purple-400 font-bold">Hinekora, Zorn des Todes</span> (Map-Aufräumung) oder <span class="text-orange-400 font-bold">Ramako, Licht der Sonne</span> (mehr Schaden).',
+      'Rollende Magmakugel gegen <span class="text-yellow-400 font-bold">Feuerfalle</span> tauschen (ca. Lvl 40). 4-Link: Rüstung+Ausweichung (2Grün, 1Blau, 1Rot).',
+      'Quest nach Daresso & Kaom: <span class="text-white font-bold">Vergrößerter Wirkungsbereich</span> Unterstützung holen → Ersetzt Effizienz in RF.',
+      'Wenn Ramako: Verbrennung ersetzen durch <span class="text-green-400 font-bold">Schneller Schadenseffekt</span>. Fluch wechseln zu <span class="text-yellow-400 font-bold">Bestrafung</span>.',
+      'Wenn Hinekora: Änderungen kommen nach Gnadenlosem Labor (Lvl 65).',
     ]},
   ]);
 
@@ -98,7 +121,6 @@ export default function App() {
     setActs(next);
     if (user && db) { setSyncStatus('loading'); setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'progress'), { acts: next.map(a => ({ id: a.id, done: a.done })), lastUpdated: Date.now() }); }
   };
-
   const resetProgress = () => {
     const next = acts.map(a => ({ ...a, done: false }));
     setActs(next);
@@ -107,10 +129,10 @@ export default function App() {
   };
 
   const tabs = [
-    { id: 'guide',    icon: ListTodo,      label: 'Guide'    },
-    { id: 'skills',   icon: Zap,           label: 'Skills'   },
-    { id: 'gear',     icon: Package,       label: 'Ausrüst.' },
-    { id: 'meta',     icon: Star,          label: 'Infos'    },
+    { id: 'guide',  icon: ListTodo,       label: 'Guide'  },
+    { id: 'skills', icon: Zap,            label: 'Skills' },
+    { id: 'gear',   icon: Package,        label: 'Gear'   },
+    { id: 'meta',   icon: Star,           label: 'Infos'  },
   ];
 
   return (
@@ -135,7 +157,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ══ MAIN APP ══ */}
+      {/* ══ MAIN ══ */}
       {!showSplash && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }}
           className="min-h-screen bg-black text-slate-200 font-sans pb-32 overflow-x-hidden">
@@ -168,22 +190,22 @@ export default function App() {
           <main className="p-4">
             <AnimatePresence mode="wait">
 
-              {/* ══ GUIDE TAB ══ */}
+              {/* ══ GUIDE ══ */}
               {activeTab === 'guide' && (
                 <motion.div key="guide" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
                   {acts.map(act => (
                     <div key={act.id} className={`bg-white/[0.03] border rounded-[2.5rem] p-6 transition-all active:scale-[0.98] ${act.done ? 'border-green-500/20 opacity-50' : 'border-white/10'}`}>
                       <div onClick={() => toggleAct(act.id)} className="flex items-center justify-between cursor-pointer">
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1 pr-3">
                           <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{act.act}</span>
-                          <h4 className="text-lg font-bold text-white leading-tight">{act.title}</h4>
+                          <h4 className="text-base font-bold text-white leading-tight">{act.title}</h4>
                         </div>
                         <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${act.done ? 'bg-green-500 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'border-white/10'}`}>
                           {act.done && <Check className="w-6 h-6 text-white" />}
                         </div>
                       </div>
                       {!act.done && (
-                        <div className="mt-5 space-y-4 pt-4 border-t border-white/5">
+                        <div className="mt-5 space-y-3.5 pt-4 border-t border-white/5">
                           {act.steps.map((step, i) => (
                             <div key={i} className="flex items-start space-x-3 text-[13px] text-slate-400 leading-relaxed">
                               <ChevronRight className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
@@ -197,148 +219,97 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* ══ SKILLS TAB ══ */}
+              {/* ══ SKILLS ══ */}
               {activeTab === 'skills' && (
                 <motion.div key="skills" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
 
                   {/* Spielweise */}
                   <div className="bg-orange-500/5 border border-orange-500/20 rounded-[2.5rem] p-6">
                     <SectionTitle icon={FastForward} label="Spielweise" color="text-orange-400" />
-                    <div className="space-y-3 text-[13px] text-slate-300 leading-relaxed">
-                      <div className="flex items-start gap-3">
-                        <span className="text-orange-500 font-black text-lg leading-none">1.</span>
-                        <p><span className="text-white font-bold">Gerechtes Feuer</span> aktivieren und mit <span className="text-white font-bold">Schildsturm</span> durch Gegner stürmen.</p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-orange-500 font-black text-lg leading-none">2.</span>
-                        <p>Bei blauen Gegnerpacks: <span className="text-yellow-400 font-bold">Bestrafung</span> und <span className="text-red-400 font-bold">Feuerfalle</span> einsetzen.</p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-orange-500 font-black text-lg leading-none">3.</span>
-                        <p><span className="text-blue-400 font-bold">Frostblinken</span> zur Neupositionierung – später einfach alles austanken.</p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-orange-500 font-black text-lg leading-none">4.</span>
-                        <p>Kurz stehen bleiben → <span className="text-orange-300 font-bold">Ramako, Licht der Sonne</span> räumt Gegnerpacks automatisch.</p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="text-orange-500 font-black text-lg leading-none">5.</span>
-                        <p><span className="text-purple-400 font-bold">Hinekora, Zorn des Todes</span> kann selbst Map-Bosse mit einem Treffer töten!</p>
-                      </div>
+                    <div className="space-y-2.5 text-[13px] text-slate-300 leading-relaxed">
+                      {[
+                        ['1.', 'Gerechtes Feuer', 'aktivieren. Mit', 'Schildsturm', 'durch Gegnerpacks stürmen.'],
+                        ['2.', 'Hinekora, Zorn des Todes', 'zündet die Explosion – kann Map-Bosse 1-Hit töten!'],
+                        ['3.', 'Bei blauen Packs:', 'Bestrafung', 'werfen +', 'Feuerfalle', 'für Einzelziel-Schaden.'],
+                        ['4.', 'Frostblinken', 'zur Neupositionierung. Später alles einfach austanken.'],
+                        ['5.', 'Kurz stehen bleiben →', 'Ramako, Licht der Sonne', 'räumt Packs automatisch.'],
+                      ].map(([num, ...parts], i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <span className="text-orange-500 font-black text-base leading-none shrink-0">{num}</span>
+                          <p>{parts.map((p, j) => j % 2 === 0 ? p : <span key={j} className="text-white font-bold">{p}</span>)}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Skill-Links */}
+                  {/* Lvl 1-20 Gems */}
                   <Card>
-                    <SectionTitle icon={Zap} label="Wichtigste Skill-Links" color="text-yellow-400" />
-                    <div className="space-y-3">
-                      {[
-                        {
-                          name: 'Rollende Magmakugel',
-                          color: 'text-red-400',
-                          links: ['Elementare Ausweitung', 'Verbrennung (Combustion)'],
-                          tip: 'Immer durch die Flammenwand schießen!'
-                        },
-                        {
-                          name: 'Gerechtes Feuer',
-                          color: 'text-orange-400',
-                          links: ['Konzentrierte Wirkung', 'Elementare Konzentration'],
-                          tip: 'Haupt-Schadensfähigkeit – einfach aktiviert lassen.'
-                        },
-                        {
-                          name: 'Schildsturm',
-                          color: 'text-blue-400',
-                          links: ['Schnellerer Angriff', 'Fortitude'],
-                          tip: 'Hauptbewegungsskill – NICHT durch Unterstützungen bremsen.'
-                        },
-                        {
-                          name: 'Feuerfalle',
-                          color: 'text-yellow-400',
-                          links: ['Konzentrierte Wirkung', 'Kontrolliertere Zerstörung'],
-                          tip: 'Für Einzelziele und Bosse. Pseudo 6-Link mit Elder-Helm!'
-                        },
-                      ].map((s, i) => (
-                        <div key={i} className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className={`font-black text-sm ${s.color}`}>{s.name}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {s.links.map((l, j) => (
-                              <span key={j} className="bg-white/5 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">{l}</span>
-                            ))}
-                          </div>
-                          <p className="text-[11px] text-slate-500 italic">{s.tip}</p>
-                        </div>
-                      ))}
+                    <SectionTitle icon={Zap} label="Lvl 1–20 · Mule-Gems" color="text-yellow-400" />
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3 mb-3">
+                      <p className="text-red-400 text-[11px] font-bold">⚠ Rollende Magmakugel auf Hexe NICHT leveln! Lvl 1 lassen!</p>
+                    </div>
+                    <div className="space-y-2">
+                      <GemLink name="Rollende Magmakugel" supports={['Arkanewoge']} tip="Primärer Angriff bis RF" nameColor="text-red-400" />
+                      <GemLink name="Flammenwand" supports={['Elementare Ausweitung']} tip="Immer vor dir aufstellen – Magmakugel hindurchschießen!" nameColor="text-orange-400" />
+                      <GemLink name="Heilige Flammenwächter (optional)" supports={['Phantasmenbeschwörung']} tip="Alternative wenn du Rollende Magmakugel nicht magst." nameColor="text-yellow-400" />
+                      <GemLink name="Frostblinken" supports={[]} tip="Bewegungsskill. Lvl 1 halten bevor du Maps machst!" nameColor="text-blue-400" />
+                    </div>
+                  </Card>
+
+                  {/* Schaden Lvl 20+ */}
+                  <Card>
+                    <SectionTitle icon={Swords} label="Lvl 20+ · Schadens-Skills" color="text-red-400" />
+                    <div className="space-y-2">
+                      <GemLink name="Rollende Magmakugel" supports={['Verbrennung', 'Elementare Ausweitung']} nameColor="text-red-400" />
+                      <GemLink name="Flammenwand" supports={[]} tip="Weiterhin nutzen bis Flammbarkeit + Lebensabgriff verfügbar." nameColor="text-orange-400" />
+                      <GemLink name="Feuerfalle (ab Lvl 40)" supports={['Effizienz', 'Elementarer Fokus', 'Schneller Schadenseffekt', 'Fallenschaden']} tip="Für Einzelziele & Bosse. Pseudo 6-Link mit Elder-Helm!" nameColor="text-yellow-400" />
+                      <GemLink name="Gerechtes Feuer (ab Akt 2)" supports={['Vergrößerter Wirkungsbereich', 'Elementarer Fokus', 'Effizienz']} tip="Haupt-Schaden. Immer aktiv halten." nameColor="text-orange-500" />
+                    </div>
+                    <div className="mt-3 bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-3">
+                      <p className="text-yellow-400 text-[11px] font-bold">💡 Alle Gemmen auf Max leveln – AUSSER Lebensabgriff & Frostblinken (Lvl 1 halten)!</p>
                     </div>
                   </Card>
 
                   {/* Auren */}
                   <Card>
-                    <SectionTitle icon={Shield} label="Auren & Herolde" color="text-blue-400" />
-                    <div className="space-y-3">
-                      {[
-                        { n: 'Vitalität', d: 'Leben-Regeneration. NIEMALS mit Supports verlinken!', c: 'text-red-400' },
-                        { n: 'Reinheit der Elemente', d: 'Immunität gegen Gefrierpunkt & Schock.', c: 'text-blue-400' },
-                        { n: 'Herold des Donners', d: 'Akt 2+ · Schock-Effekt verstärkt RF-Schaden.', c: 'text-yellow-400' },
-                      ].map((a, i) => (
-                        <div key={i} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
-                          <div>
-                            <p className={`font-bold text-sm ${a.c}`}>{a.n}</p>
-                            <p className="text-[11px] text-slate-500">{a.d}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3">
-                        <p className="text-red-400 font-black text-[11px] uppercase tracking-widest flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5" /> Auren NIEMALS mit Unterstützungsgemmen verlinken!
-                        </p>
-                      </div>
+                    <SectionTitle icon={Shield} label="Auren, Herolde & Flüche" color="text-blue-400" />
+                    <div className="space-y-2">
+                      <GemLink name="Vitalität" supports={[]} tip="NIEMALS mit Supports verlinken! Gibt Leben-Regen." nameColor="text-red-400" />
+                      <GemLink name="Reinheit der Elemente" supports={[]} tip="Ab Akt 3. Immunität gegen Gefrierpunkt & Schock." nameColor="text-blue-400" />
+                      <GemLink name="Herold des Donners" supports={[]} tip="Ab Akt 2. Schock verstärkt RF-Schaden." nameColor="text-yellow-400" />
+                      <GemLink name="Flammbarkeit (Fluch)" supports={['Lebensabgriff']} tip="Lebensabgriff = Fluch kostet Leben statt Mana!" nameColor="text-orange-300" />
+                    </div>
+                    <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-2xl p-3">
+                      <p className="text-red-400 text-[11px] font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Auren NIEMALS mit Unterstützungsgemmen verlinken!
+                      </p>
                     </div>
                   </Card>
                 </motion.div>
               )}
 
-              {/* ══ GEAR TAB ══ */}
+              {/* ══ GEAR ══ */}
               {activeTab === 'gear' && (
                 <motion.div key="gear" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.25 }} className="space-y-4">
 
-                  {/* Tränke */}
                   <Card>
-                    <SectionTitle icon={Beaker} label="Tränke-Setup" color="text-green-400" />
+                    <SectionTitle icon={Package} label="Günstige Uniques (Kampagne)" color="text-orange-400" />
                     <div className="space-y-3">
                       {[
-                        { n: 'Leben (Sofort)', d: 'Früh bei Nessa kaufen. Sofort-Heilung hat Priorität.', badge: 'Nessa', bc: 'text-slate-500' },
-                        { n: 'Rubintrank', d: 'Feuer-Resistenz bei Nutzung. Pflicht für Gerechtes Feuer!', badge: 'PFLICHT', bc: 'text-orange-400 font-black' },
-                        { n: 'Granittrank', d: 'Massiver Rüstungsboost. Gut für Maps.', badge: 'Optional', bc: 'text-slate-600' },
-                      ].map((t, i) => (
-                        <div key={i} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
-                          <div className="flex-1 pr-2">
-                            <p className="font-bold text-sm text-slate-200">{t.n}</p>
-                            <p className="text-[11px] text-slate-500">{t.d}</p>
-                          </div>
-                          <span className={`text-[10px] uppercase shrink-0 ${t.bc}`}>{t.badge}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-
-                  {/* Frühes Gear */}
-                  <Card>
-                    <SectionTitle icon={Package} label="Frühe Unique-Items" color="text-orange-400" />
-                    <div className="space-y-4">
-                      {[
-                        { n: 'Ziegenhorn (Zauberstab)', d: 'Akt 1 Händler · +Feuerschaden zu Zaubern. Auch weiß ist stark!', l: 'Akt 1' },
-                        { n: 'Kikazaru (Ring)', d: 'Falls RF schwer zu halten ist & du nicht Pyre hast.', l: 'Drop' },
-                        { n: 'Pyre (Ring)', d: 'Wenn du mehr Schaden statt Sustain willst.', l: 'Drop' },
-                        { n: 'Mantel der Flamme', d: 'Beste Rüstung – bis Lvl 100 spielbar!', l: 'Lvl 18' },
-                        { n: 'Replika: Atziris Schwäche', d: 'Extreme Regeneration. Sehr gut früh.', l: 'Lvl 16' },
-                        { n: 'Xophs Herz (Amulett)', d: 'Massiv Leben & Feuerschaden.', l: 'Lvl 5' },
-                        { n: 'Siebenmeilenstiefel', d: '50% Bewegungstempo – perfekt zum Leveln.', l: 'Lvl 1' },
+                        { n: 'Ascheschreier',          d: 'Bestes Akt-1-Waffe! Impliziter Feuerschaden.', l: 'Lvl 6',  hot: true  },
+                        { n: 'Ziegenhorn',              d: 'Händler Akt 1. +Feuerschaden implizit.',        l: 'Akt 1', hot: true  },
+                        { n: 'Kikazaru',                d: 'Wenn RF schwer zu halten ist.',                l: 'Lvl 20' },
+                        { n: 'Pyre',                    d: 'Mehr Schaden statt Sustain.',                  l: 'Lvl 11' },
+                        { n: 'Goldfelge',               d: 'Großartige Resistenzen früh.',                 l: 'Lvl 1'  },
+                        { n: 'Tausend Bänder',          d: 'Flacher Ele-Schaden, gut in Akt 1.',          l: 'Lvl 1'  },
+                        { n: 'Siebenmeilenstiefel',     d: 'Zoomer-Boots! 50% Bewegungstempo.',            l: 'Lvl 1'  },
+                        { n: 'Mantel der Flamme',       d: 'Bis Lvl 100 spielbar! Beste Rüstung.',        l: 'Lvl 18', hot: true },
+                        { n: 'Replika: Atziris Schwäche', d: 'Extreme Regeneration.',                     l: 'Lvl 16' },
+                        { n: 'Xophs Herz',              d: 'Massiv Leben & Feuerschaden.',                l: 'Lvl 5'  },
                       ].map((u, i) => (
                         <div key={i} className="flex justify-between items-start">
                           <div className="flex-1 pr-4">
-                            <p className="font-bold text-sm text-slate-200">{u.n}</p>
+                            <p className={`font-bold text-sm ${u.hot ? 'text-orange-300' : 'text-slate-200'}`}>{u.n} {u.hot && '🔥'}</p>
                             <p className="text-[10px] text-slate-500">{u.d}</p>
                           </div>
                           <span className="bg-orange-500/10 text-orange-500 text-[10px] font-black px-2 py-1 rounded-lg shrink-0">{u.l}</span>
@@ -347,105 +318,157 @@ export default function App() {
                     </div>
                   </Card>
 
-                  {/* Gegnerfilter REGEX */}
                   <Card>
-                    <h4 className="text-blue-400 font-black uppercase text-[10px] mb-3 tracking-widest">Händler-Filter (REGEX für Sockelfarben)</h4>
+                    <SectionTitle icon={Package} label="Späteres Gear (Maps / Endgame)" color="text-purple-400" />
+                    <div className="space-y-3">
+                      {[
+                        { n: 'Aufstieg des Phönix',    d: 'Einfachster Weg zu 90% Max-Resi. Exarch ist dann ein Witz!', l: 'Lvl 65' },
+                        { n: 'Unsterbliches Fleisch',   d: 'Bester Gürtel für Regen zum Preis.',                       l: 'Lvl 50' },
+                        { n: 'Granitgestühl',           d: 'Schnell leveln!',                                          l: 'Lvl 18' },
+                        { n: 'Annihilations Vorgehen',  d: 'Lieblingsboots – Website-FAQ beachten.',                   l: 'Lvl 95' },
+                        { n: 'Todesstöße',              d: 'Sehr gut für Adrenalin beim Craften.',                     l: 'Lvl 30' },
+                        { n: 'Lochtonials Pflege',      d: 'Gute Handschuhe für Angriffstempo.',                      l: 'Lvl 1'  },
+      	              ].map((u, i) => (
+                        <div key={i} className="flex justify-between items-start">
+                          <div className="flex-1 pr-4">
+                            <p className="font-bold text-sm text-slate-200">{u.n}</p>
+                            <p className="text-[10px] text-slate-500">{u.d}</p>
+                          </div>
+                          <span className="bg-purple-500/10 text-purple-400 text-[10px] font-black px-2 py-1 rounded-lg shrink-0">{u.l}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <SectionTitle icon={Beaker} label="Tränke-Setup" color="text-green-400" />
+                    <div className="space-y-2">
+                      {[
+                        { n: 'Leben (Sofort)',      d: 'Früh bei Nessa kaufen.',           b: 'Nessa',   bc: 'text-slate-500' },
+                        { n: 'Rubintrank',          d: 'Feuer-Resi bei Nutzung. Pflicht!', b: 'PFLICHT', bc: 'text-orange-400 font-black' },
+                        { n: 'Granittrank',         d: 'Massiver Rüstungsboost für Maps.', b: 'Optional', bc: 'text-slate-600' },
+                      ].map((t, i) => (
+                        <div key={i} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
+                          <div>
+                            <p className="font-bold text-sm text-slate-200">{t.n}</p>
+                            <p className="text-[11px] text-slate-500">{t.d}</p>
+                          </div>
+                          <span className={`text-[10px] uppercase ${t.bc}`}>{t.b}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <h4 className="text-blue-400 font-black uppercase text-[10px] mb-2 tracking-widest">Händler-Filter REGEX</h4>
+                    <p className="text-[10px] text-slate-600 mb-3">Im Suchfeld bei Händlern eingeben – hebt INT-Items, blaue Links & nützliche 4-Links hervor.</p>
                     <div className="flex items-center space-x-3">
                       <div className="bg-black/60 p-4 rounded-2xl border border-white/5 flex-1 font-mono text-[8px] text-slate-400 break-all leading-tight">{regexString}</div>
                       <button onClick={handleCopy} className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg active:scale-90 transition-all shrink-0">
                         {copied ? <Check className="w-6 h-6" /> : <Copy className="w-6 h-6" />}
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-600 mt-3">Hilft beim Suchen nach Intelligenz-Items (z.B. Lapislazuli-Amulett) und Sockelfarben für Rollende Magmakugel.</p>
                   </Card>
                 </motion.div>
               )}
 
-              {/* ══ META/INFOS TAB ══ */}
+              {/* ══ META / INFOS ══ */}
               {activeTab === 'meta' && (
                 <motion.div key="meta" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.25 }} className="space-y-4">
 
-                  {/* Stärken */}
-                  <div className="bg-green-500/5 border border-green-500/15 rounded-[2.5rem] p-6">
-                    <SectionTitle icon={ThumbsUp} label="Stärken" color="text-green-400" />
-                    <ul className="space-y-2">
-                      {[
-                        'Schnelle Map-Aufräumung – skaliert mit Entzündungs-Ausbreitung',
-                        'Sehr robust: 90%+ Resistenz + Block-Cap + Erholung',
-                        '5+ Ausdauerladungen → massive Schadensreduktion',
-                        'Wenig Tasten nötig – entspannter Spielstil',
-                        'Ignoriert Kälte- & Blitz-Resistenz via Feuer-Resistenz-Stacking',
-                        'Günstig startbar – funktioniert schon mit seltenen Items',
-                      ].map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px] text-slate-300">
-                          <span className="text-green-500 mt-0.5 shrink-0">✓</span> {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Schwächen */}
-                  <div className="bg-red-500/5 border border-red-500/15 rounded-[2.5rem] p-6">
-                    <SectionTitle icon={ThumbsDown} label="Schwächen" color="text-red-400" />
-                    <ul className="space-y-2">
-                      {[
-                        'Niedriger Einzelziel-Schaden (2–4M DPS durchschnittlich)',
-                        'Akt 1 langsam wegen spätem RF-Start (Akt 2)',
-                        'Begrenzte Skalierung – andere Builds skalieren besser',
-                        'Schwacher Boss-Schaden – Uber-Bosse nicht empfohlen',
-                      ].map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-[13px] text-slate-300">
-                          <span className="text-red-500 mt-0.5 shrink-0">✗</span> {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Mastery / Pflicht-Passivm */}
-                  <Card>
-                    <SectionTitle icon={Star} label="Pflicht-Meisterschaft (Passive)" color="text-yellow-400" />
-                    <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-4">
-                      <p className="text-white font-bold text-sm mb-1">"1 Leben/Sek. pro ungedeckelter Feuer-Resistenz"</p>
-                      <p className="text-[12px] text-slate-400 leading-relaxed">
-                        Bei 125% Feuer-Resistenz = <span className="text-yellow-400 font-bold">125 Leben/Sek.</span> Regeneration.
-                        Das ist die Basis, damit Gerechtes Feuer nicht tötet.
-                        <span className="text-red-400 font-bold"> Minimum: 120% Feuer-Resi bevor RF aktiviert wird!</span>
-                      </p>
+                  {/* Stärken / Schwächen */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-green-500/5 border border-green-500/15 rounded-[2.5rem] p-6">
+                      <SectionTitle icon={ThumbsUp} label="Stärken" color="text-green-400" />
+                      <ul className="space-y-2">
+                        {['Schnelle Map-Aufräumung (skaliert mit Entzündungs-Ausbreitung)',
+                          'Sehr robust: 90%+ Resi + Block-Cap + Erholung',
+                          '5+ Ausdauerladungen → physische & elementare Reduktion',
+                          'Wenig Tasten – entspannter Spielstil',
+                          'Ignoriert Kälte- & Blitz-Resis via Feuer-Resi-Stacking (Tasalio)',
+                          'Günstig startbar – funktioniert mit einfachen seltenen Items',
+                        ].map((s, i) => <li key={i} className="flex items-start gap-2 text-[13px] text-slate-300"><span className="text-green-500 shrink-0">✓</span>{s}</li>)}
+                      </ul>
                     </div>
-                    <div className="mt-4 space-y-2">
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">Tipps fürs Erreichen:</p>
-                      {[
-                        '„Feuer-Resistenz" auf jedes offene Suffix craften (Werkbank in Versteck)',
-                        '2× Eisenring + 2× rote Gemme verkaufen = 2× Rubinring',
-                        'ALT halten zum Anzeigen offener Affix-Slots (Erweiterte Anzeige aktivieren)',
+                    <div className="bg-red-500/5 border border-red-500/15 rounded-[2.5rem] p-6">
+                      <SectionTitle icon={ThumbsDown} label="Schwächen" color="text-red-400" />
+                      <ul className="space-y-2">
+                        {['Niedriger Einzelziel-Schaden (2–4M DPS)',
+                          'Akt 1 langsam – RF erst ab Akt 2',
+                          'Begrenzte Skalierung ins Spätspiel',
+                          'Uber-Endbosse nicht empfohlen',
+                        ].map((s, i) => <li key={i} className="flex items-start gap-2 text-[13px] text-slate-300"><span className="text-red-500 shrink-0">✗</span>{s}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Wichtige Meisterschaft */}
+                  <Card>
+                    <SectionTitle icon={Star} label="Pflicht-Meisterschaft" color="text-yellow-400" />
+                    <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-4 mb-4">
+                      <p className="text-white font-bold text-sm mb-1">"1 Leben/Sek. pro ungedeckelter Feuer-Widerstand"</p>
+                      <p className="text-[12px] text-slate-400">125% Feuer-Resi = <span className="text-yellow-400 font-bold">125 Leben/Sek.</span> Regen. Minimum 120% bevor RF aktiviert!</p>
+                    </div>
+                    <div className="space-y-2">
+                      {['„Feuer-Widerstand" auf offene Suffixe craften (1 Transmute, Werkbank in Versteck)',
+                        '2× Eisenring + 2× rote Gemme = 2× Rubinring (Händler-Fenster)',
+                        'ALT halten zum Anzeigen offener Affix-Slots (Erweiterte Anzeige aktivieren)'
                       ].map((t, i) => (
                         <div key={i} className="flex gap-2 text-[12px] text-slate-400">
-                          <ChevronRight className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
-                          <p>{t}</p>
+                          <ChevronRight className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" /><p>{t}</p>
                         </div>
                       ))}
                     </div>
                   </Card>
 
-                  {/* Tödlicher Aura-Fehler */}
-                  <div className="bg-red-500/10 border-2 border-red-500/20 rounded-[2.5rem] p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
-                      <Skull className="w-20 h-20 text-red-500" />
+                  {/* Banditen */}
+                  <Card>
+                    <SectionTitle icon={Swords} label="Banditen-Wahl (Akt 2)" color="text-orange-400" />
+                    <div className="space-y-2">
+                      {[
+                        { n: 'Kraityn helfen 🏆', d: '+8% Lauftempo – Empfehlung für Geschwindigkeit!', c: 'border-green-500/30 bg-green-500/5', t: 'text-green-400' },
+                        { n: 'Oak helfen', d: '+40 Leben – Gut für Einsteiger.', c: 'border-white/10', t: 'text-slate-300' },
+                        { n: 'Alle töten', d: '+1 Skillpunkt – Bestes für Einzelziel (höchster DPS).', c: 'border-white/10', t: 'text-slate-300' },
+                      ].map((b, i) => (
+                        <div key={i} className={`p-4 rounded-2xl border ${b.c}`}>
+                          <p className={`font-bold text-sm ${b.t}`}>{b.n}</p>
+                          <p className="text-[11px] text-slate-500">{b.d}</p>
+                        </div>
+                      ))}
                     </div>
-                    <h3 className="text-red-500 font-black uppercase text-xs mb-3 tracking-widest flex items-center animate-pulse">
-                      <AlertTriangle className="w-5 h-5 mr-2" /> Tödlicher Aura-Fehler
+                  </Card>
+
+                  {/* Pantheon */}
+                  <Card>
+                    <SectionTitle icon={Shield} label="Pantheon (ab Maps)" color="text-blue-400" />
+                    <div className="space-y-2">
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                        <p className="text-blue-300 font-bold text-sm">Meergott (Meeresgott)</p>
+                        <p className="text-[11px] text-slate-500">Gefrierpunkt-Immunität – "100% Chance gefrorenes Stehen zu vermeiden" via Göttliches Gefäß freischalten!</p>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                        <p className="text-slate-300 font-bold text-sm">Ralakesh</p>
+                        <p className="text-[11px] text-slate-500">Kleiner Pantheon. Reduziert Blutungs- & Gift-Debuffs.</p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Todesfehler */}
+                  <div className="bg-red-500/10 border-2 border-red-500/20 rounded-[2.5rem] p-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12"><Skull className="w-20 h-20 text-red-500" /></div>
+                    <h3 className="text-red-500 font-black uppercase text-xs mb-3 tracking-widest flex items-center animate-pulse gap-2">
+                      <AlertTriangle className="w-5 h-5" /> Tödlicher Anfängerfehler
                     </h3>
                     <p className="text-[13px] text-slate-200 font-bold leading-relaxed relative z-10">
-                      Verlinke <span className="underline decoration-red-500">NIEMALS</span> Auren (Vitalität, Reinheit der Elemente) mit Unterstützungsgemmen! Mana-Reservierung steigt auf 100%+ → Handlungsunfähig.
+                      Verlinke <span className="underline decoration-red-500">NIEMALS</span> Auren mit Unterstützungsgemmen (außer es steht explizit im PoB z.B. Skitterbot + Ungebundene Qualen). Mana-Reservierung auf 100%+ = sofort handlungsunfähig!
                     </p>
                   </div>
                 </motion.div>
               )}
-
             </AnimatePresence>
           </main>
 
-          {/* Nav Bar */}
+          {/* Nav */}
           <nav className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-3xl border-t border-white/5 pt-4 pb-10 px-6 flex justify-between items-center z-50">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -459,10 +482,8 @@ export default function App() {
           {/* Reset Modal */}
           <AnimatePresence>
             {showReset && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-                  className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl">
                   <h3 className="text-xl font-black text-white mb-2 uppercase italic tracking-tighter">Fortschritt löschen?</h3>
                   <p className="text-slate-400 text-sm mb-8 leading-relaxed">Alle gesetzten Häkchen werden unwiderruflich zurückgesetzt.</p>
                   <div className="flex space-x-3">
