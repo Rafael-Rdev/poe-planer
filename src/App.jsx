@@ -466,21 +466,69 @@ export default function App() {
 
                   {/* Stats Dashboard */}
                   <Card className="bg-gradient-to-br from-indigo-950/40 to-black border-indigo-500/20">
-                    <SectionTitle icon={Zap} label="Ziel-Stats (Lvl 90+)" color="text-indigo-400" />
+                    <SectionTitle icon={Zap} label="PoB Stats (Lvl 100)" color="text-indigo-400" />
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
-                        <span className="text-2xl font-black text-indigo-400 mb-1">95K</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Effektives Leben<br/>(EHP)</span>
+                        <span className="text-2xl font-black text-indigo-400 mb-1">94.6K</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Effektives Leben<br/>(eHP)</span>
                       </div>
                       <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
-                        <span className="text-2xl font-black text-orange-400 mb-1">88%</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Max<br/>Resistenzen</span>
+                        <span className="text-2xl font-black text-orange-400 mb-1">3.35M</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Schaden pro Sekunde<br/>(DPS)</span>
                       </div>
                     </div>
-                    <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-wrap gap-2 justify-center text-[11px] text-slate-300 font-bold">
-                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-red-500"/> 5 Ausdauerladungen</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-orange-500"/> 75% Block</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Zap className="w-3 h-3 text-green-500"/> 13K+ Rüstung</span>
+                    <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-wrap gap-2 justify-center text-[11px] text-slate-300 font-bold mb-3">
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-red-500"/> 8,334 Life</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-orange-500"/> 88% Max Resis (75% Chaos)</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Zap className="w-3 h-3 text-green-500"/> 13,009 Rüstung</span>
+                    </div>
+                  </Card>
+
+                  {/* Level 100 Tattoos & Masteries */}
+                  <Card>
+                    <SectionTitle icon={Gem} label="Level 100 Min-Max (Tattoos & Masteries)" color="text-pink-400" />
+                    
+                    <div className="space-y-4">
+                      {/* Tattoos & Runegraft */}
+                      <div>
+                        <p className="text-pink-400 font-black text-[10px] uppercase tracking-widest mb-2">Tattoos & Runegraft</p>
+                        <div className="space-y-2">
+                          {[
+                            ['Runegraft of the Bound', '20% red. Schuh-Boni, 20% erhöhte Handschuh-Boni (Limitiert auf 1)'],
+                            ['6x Tattoo of the Ngamahu Firewalker', '+6% Feuer-Resistenz (insgesamt +36%)'],
+                            ['1x Tattoo of the Ramako Fleetfoot', '2% erhöhtes Bewegungs-Tempo'],
+                            ['3x Tattoo of the Rongokurai Turtle', '5% reduz. Extra-Schaden von kritischen Treffern (insg. 15%)'],
+                          ].map(([name, desc], i) => (
+                            <div key={i} className="flex flex-col bg-black/40 p-2.5 rounded-xl border border-white/5">
+                              <span className="text-[12px] font-bold text-white">{name}</span>
+                              <span className="text-[11px] text-slate-400">{desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Masteries */}
+                      <div>
+                        <p className="text-blue-400 font-black text-[10px] uppercase tracking-widest mb-2">Lvl 100 Masteries & Keystones</p>
+                        <div className="space-y-2">
+                          <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                            <span className="text-[10px] text-blue-300 font-bold uppercase block mb-1">Keystones</span>
+                            <p className="text-[11px] text-slate-300 leading-relaxed font-bold">Unwavering Stance <span className="text-slate-500 font-normal">(Immunität gegen Betäubung)</span>, Glancing Blows <span className="text-slate-500 font-normal">(Doppelte Blockchance, aber man nimmt 65% Schaden)</span></p>
+                          </div>
+                          
+                          {[
+                            ['Life Mastery', '+30 Max Leben | Zählt als Volles Leben bei 90%+ | 10% mehr Max Leben (bei 6 vergebenen Life Masteries) | Zählt als Niedriges Leben bei 55% oder weniger | Skills kosten Leben statt 15% Mana | 15% erhöhtes Max Leben ohne Körperrüstungs-Lebensmods'],
+                            ['Block & Armour', 'Block: +1% Zauberblock pro 5% Angriffsblock | Armour: 30% reduz. Extra-Schaden durch Crits'],
+                            ['Fire & Elemental', 'Feuer: 1 Leben/Sek pro 1% ungedeckeltem Feuer-Widerstand | 50% Chance Entzündungsdauer bei Crit zu erneuern | Elemental: Exposure wendet mind. -18% Resi an'],
+                            ['Protection & Reservation', 'Protection: Immun gegen Corrupted Blood | Reservation: Auren haben 10% erhöhten Effekt auf dich'],
+                          ].map(([cat, desc], i) => (
+                            <div key={i} className="bg-black/40 p-2.5 rounded-xl border border-white/5 flex flex-col">
+                              <span className="text-[11px] font-bold text-slate-200">{cat}</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </Card>
 
@@ -534,12 +582,12 @@ export default function App() {
                     <SectionTitle icon={Shield} label="Pantheon (ab Maps)" color="text-blue-400" />
                     <div className="space-y-2">
                       <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
-                        <p className="text-blue-300 font-bold text-sm">Meergott (Meeresgott)</p>
-                        <p className="text-[11px] text-slate-500">Gefrierpunkt-Immunität – "100% Chance gefrorenes Stehen zu vermeiden" via Göttliches Gefäß freischalten!</p>
+                        <p className="text-blue-300 font-bold text-sm">Arakaali (Lvl 100 Setup) / Meergott</p>
+                        <p className="text-[11px] text-slate-500">Im Level 100 Setup (Arakaali) für DoT-Reduktion, davor Meeresgott für "100% Chance gefrorenes Stehen zu vermeiden" via Göttliches Gefäß!</p>
                       </div>
                       <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
                         <p className="text-slate-300 font-bold text-sm">Ralakesh</p>
-                        <p className="text-[11px] text-slate-500">Kleiner Pantheon. Reduziert Blutungs- & Gift-Debuffs.</p>
+                        <p className="text-[11px] text-slate-500">Kleiner Pantheon. Reduziert Blutungs- & Gift-Debuffs. Standard für End-Game!</p>
                       </div>
                     </div>
                   </Card>
