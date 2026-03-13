@@ -115,6 +115,12 @@ export default function App() {
       '<span class="text-orange-400 font-bold">Mantel der Flamme</span> kaufen → hilft bei großen physischen Treffern.',
       'Hinweis: Golems sterben in gelben Maps häufig – nicht unnötig Gold investieren.',
     ]},
+    { id: 7, act: 'Lvl 95-100', title: 'Min/Maxing & Cluster-Juwelen', done: false, steps: [
+      '<span class="text-orange-400 font-bold">Lvl 95+ (Bösartigkeit):</span> Nutze ein kleines Cluster-Juwel (Manabereich/Mana-Reservierung) um <span class="text-purple-400 font-bold">Bösartigkeit (Malevolence)</span> zu deiner Aura-Rotation hinzuzufügen.',
+      '<span class="text-yellow-400 font-bold">Lvl 100 (25% Effekt Cluster):</span> Wechsle auf ein massives passives Cluster-Setup mit "25% erhöhter Effekt", um Rüstung, Leben und Schaden maximal zu optimieren (siehe PoB).',
+      '<span class="text-blue-400 font-bold">Uhrwerk-Ring (Cogwork Ring):</span> Das absolute Endgame-Ziel für Schmuck, erlaubt extreme Suffix-Kombinationen (Attribut- und Resi-Stapeln).',
+      'Erinnerung: Ubers sind mit dem Build weiterhin sehr schwer. Konzentriere dich auf schnelles Map-Clearing und starke Expeditionen/Rituale.'
+    ]},
   ]);
 
   const progress = Math.round((acts.filter(a => a.done).length / acts.length) * 100);
@@ -375,6 +381,28 @@ export default function App() {
                   </Card>
 
                   <Card>
+                    <SectionTitle icon={Star} label="Ziele für Seltene Ausrüstung (Rares)" color="text-yellow-400" />
+                    <div className="space-y-3">
+                      {[
+                        { n: 'Quarz-Zepter (Quartz Sceptre)', d: 'Beste Basis für +1/2 auf alle/Feuer Fertigkeitsgemmen, Feuerschaden & DoT-Multiplikator.', hot: true },
+                        { n: 'Rubinring (Ruby Ring)', d: 'Deine Hauptquelle für Leben, Feuer-Resistenz, Chaos-Resistenz und evtl. Geschicklichkeit.' },
+                        { n: 'Barbute-Helm (Barbute Helmet)', d: 'Rüstung-Basis. Ziel: Ältesten-Einfluss (Elder) für "Unterstützt durch Brennschaden/Vergrößerter Wirkungsbereich" -> Pseudo 6-Link für deine Feuerfalle!', hot: true },
+                        { n: 'Verstärkter Turmschild (Reinforced Tower Shield)', d: 'Rüstungs-Basis für hohen Basisblock. Ernte-Leben-Craften bis "Leben bei Block wiederherstellen".' },
+                        { n: 'Bronze-Panzerhandschuhe (Bronze Gauntlets)', d: 'Rüstungs-Basis. Fokus auf Leben, Regeneration und Feuer/Chaos-Widerstand.' },
+                        { n: 'Plattierte Beinschienen (Plated Greaves)', d: 'Rüstungs-Stiefel mit Bewegungsgeschwindigkeit, Leben und Resistenzen.' },
+                        { n: 'Lapislazuli-Amulett (Lapis Amulet)', d: 'Gibt dir nötige Intelligenz für Gemmen. Roll hier auf +1 Level für Feuer-Gemmen und Schaden über Zeit.' }
+                      ].map((u, i) => (
+                        <div key={i} className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className={`font-bold text-sm ${u.hot ? 'text-yellow-300' : 'text-slate-200'}`}>{u.n} {u.hot && '⭐'}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{u.d}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card>
                     <SectionTitle icon={Beaker} label="Tränke-Setup" color="text-green-400" />
                     <div className="space-y-2">
                       {[
@@ -436,13 +464,42 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Wichtige Meisterschaft */}
+                  {/* Stats Dashboard */}
+                  <Card className="bg-gradient-to-br from-indigo-950/40 to-black border-indigo-500/20">
+                    <SectionTitle icon={Zap} label="Ziel-Stats (Lvl 90+)" color="text-indigo-400" />
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                        <span className="text-2xl font-black text-indigo-400 mb-1">95K</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Effektives Leben<br/>(EHP)</span>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                        <span className="text-2xl font-black text-orange-400 mb-1">88%</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Max<br/>Resistenzen</span>
+                      </div>
+                    </div>
+                    <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-wrap gap-2 justify-center text-[11px] text-slate-300 font-bold">
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-red-500"/> 5 Ausdauerladungen</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Shield className="w-3 h-3 text-orange-500"/> 75% Block</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded text-white flex items-center gap-1"><Zap className="w-3 h-3 text-green-500"/> 13K+ Rüstung</span>
+                    </div>
+                  </Card>
+
+                  {/* Wichtige Meisterschaften */}
                   <Card>
-                    <SectionTitle icon={Star} label="Pflicht-Meisterschaft" color="text-yellow-400" />
-                    <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-4 mb-4">
+                    <SectionTitle icon={Star} label="Pflicht-Meisterschaften" color="text-yellow-400" />
+                    
+                    <div className="bg-yellow-500/5 border border-yellow-500/15 rounded-2xl p-4 mb-3">
+                      <p className="text-orange-400 font-bold text-[10px] uppercase mb-1 tracking-widest">Feuer-Meisterschaft (Fire Mastery)</p>
                       <p className="text-white font-bold text-sm mb-1">"1 Leben/Sek. pro ungedeckelter Feuer-Widerstand"</p>
                       <p className="text-[12px] text-slate-400">125% Feuer-Resi = <span className="text-yellow-400 font-bold">125 Leben/Sek.</span> Regen. Minimum 120% bevor RF aktiviert!</p>
                     </div>
+
+                    <div className="bg-red-500/5 border border-red-500/15 rounded-2xl p-4 mb-4">
+                      <p className="text-red-400 font-bold text-[10px] uppercase mb-1 tracking-widest">Erholungs-Meisterschaft (Recovery Mastery)</p>
+                      <p className="text-white font-bold text-sm mb-1">"Regeneriere 50 Leben pro Sekunde"</p>
+                      <p className="text-[12px] text-slate-400">Massiver Boost fürs Überleben in den ersten Akten. Extrem wichtig früh mitzunehmen!</p>
+                    </div>
+
                     <div className="space-y-2">
                       {['„Feuer-Widerstand" auf offene Suffixe craften (1 Transmute, Werkbank in Versteck)',
                         '2× Eisenring + 2× rote Gemme = 2× Rubinring (Händler-Fenster)',
