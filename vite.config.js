@@ -54,4 +54,12 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        shoppingList: 'shopping_list.html'
+      }
+    }
+  }
 });
