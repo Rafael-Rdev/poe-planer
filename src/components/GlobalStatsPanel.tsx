@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useCharacterStats } from "@/hooks/useCharacterStats";
 import type { CharacterStats, OffensiveStats, DefensiveStats, UtilityStats } from "@/lib/statCalculator";
 
@@ -138,9 +138,28 @@ function StatCategory({
 // HAUPTKOMPONENTE
 // ============================================================
 
+const STORAGE_KEY = "poe2-stats-panel-open";
+
 export default function GlobalStatsPanel() {
   const stats = useCharacterStats();
-  const [isOpen, setIsOpen] = useState(true);
+
+  // localStorage-Persistenz: default false; auf Mobile (< 768px) immer false
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Initialisierung nach Hydration (kein SSR-Mismatch)
+  useEffect(() => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (isMobile) return; // auf Mobile immer geschlossen
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === "true") setIsOpen(true);
+  }, []);
+
+  // Persistieren bei jeder Änderung (nur Desktop-Wert speichern)
+  const handleToggle = (next: boolean) => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (!isMobile) localStorage.setItem(STORAGE_KEY, String(next));
+    setIsOpen(next);
+  };
 
   // Zähle aktive Stats für das Badge – memoized, da stats sich nur bei echten Änderungen bewegt
   const totalMods = useMemo(() => {
@@ -157,7 +176,7 @@ export default function GlobalStatsPanel() {
     <>
       {/* Toggle-Button — immer sichtbar */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => handleToggle(!isOpen)}
         className={`
           fixed top-20 right-0 z-50
           flex items-center gap-1.5
@@ -221,7 +240,7 @@ export default function GlobalStatsPanel() {
             Charakter-Stats
           </h2>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => handleToggle(false)}
             className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
             title="Schließen"
           >
