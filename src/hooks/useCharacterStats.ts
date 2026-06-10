@@ -14,12 +14,12 @@ export function useCharacterStats(): CharacterStats {
   // Gezielt nur die drei relevanten Felder abonnieren,
   // useShallow sorgt für flachen Vergleich → kein Rerender
   // bei Änderungen an anderen Store-Feldern (z. B. savedBuilds).
-  const [equipment, sockets, selectedPassives] = useBuildStore(
-    useShallow((s) => [s.equipment, s.sockets, s.selectedPassives] as const)
+  const [equipment, sockets, selectedPassives, level] = useBuildStore(
+    useShallow((s) => [s.equipment, s.sockets, s.selectedPassives, s.level] as const)
   );
 
-  // Nur neu berechnen, wenn sich einer der drei Werte ändert
+  // Nur neu berechnen, wenn sich einer der vier Werte ändert
   return useMemo(() => {
-    return calculateAllStats(equipment, sockets, selectedPassives);
-  }, [equipment, sockets, selectedPassives]);
+    return calculateAllStats(equipment, sockets, selectedPassives, level);
+  }, [equipment, sockets, selectedPassives, level]);
 }

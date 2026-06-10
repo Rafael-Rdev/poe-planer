@@ -641,6 +641,7 @@ export function calculateAllStats(
   equipment: EquipmentSlots,
   sockets: SocketData[],
   selectedPassives: string[],
+  level: number = 1,
 ): CharacterStats {
   // Items aus allen Equipment-Slots sammeln
   const items = collectEquippedItems(equipment);
@@ -658,5 +659,12 @@ export function calculateAllStats(
   const allRawStats = [...itemStats, ...gemStats, ...passiveStats];
   const deduplicatedStats = deduplicateRawStats(allRawStats);
 
-  return aggregateStats(deduplicatedStats);
+  const stats = aggregateStats(deduplicatedStats);
+
+  // Basiswerte aus dem Level berechnen und addieren
+  const clampedLevel = Math.min(100, Math.max(1, level));
+  stats.defensive.maximalesLeben  += 50 + 10 * clampedLevel;
+  stats.defensive.maximalesMana   += 40 + 6  * clampedLevel;
+
+  return stats;
 }

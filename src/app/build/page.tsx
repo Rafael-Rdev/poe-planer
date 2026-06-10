@@ -166,11 +166,13 @@ function EmptyState() {
 export default function BuildPage() {
   const hydrated = useHydration();
 
-  const { characterClass, sockets, selectedPassives } = useBuildStore(
+  const { characterClass, sockets, selectedPassives, level, setLevel } = useBuildStore(
     useShallow((s) => ({
       characterClass: s.characterClass,
       sockets: s.sockets,
       selectedPassives: s.selectedPassives,
+      level: s.level,
+      setLevel: s.setLevel,
     }))
   );
 
@@ -243,7 +245,20 @@ export default function BuildPage() {
                 {classData.nameEn}
               </span>
             </div>
-            <p className="mt-1 text-sm text-zinc-400">{classData.description}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-sm text-zinc-400">{classData.description}</p>
+              <label className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900/70 px-2 py-1">
+                <span className="text-xs text-zinc-400">Lvl</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={level}
+                  onChange={(e) => setLevel(Number(e.target.value))}
+                  className="w-12 bg-transparent text-center text-sm font-bold text-zinc-100 focus:outline-none"
+                />
+              </label>
+            </div>
           </div>
           <Link
             href="/import"

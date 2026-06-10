@@ -65,6 +65,13 @@ export interface BuildState {
   /** Leert alle Slots */
   clearSockets: () => void;
 
+  // ============ Charakter-Level ============
+
+  /** Charakter-Level (1–100) */
+  level: number;
+  /** Setzt das Level (wird auf 1–100 geclampt) */
+  setLevel: (level: number) => void;
+
   // ============ Skilltree / Klassen ============
 
   /** Die gewählte Charakterklasse (null = keine Auswahl) */
@@ -259,6 +266,12 @@ export const useBuildStore = create<BuildState>()(
 
       clearSockets: () => set({ sockets: [...EMPTY_SOCKETS] }),
 
+      // ============ Charakter-Level ============
+
+      level: 1,
+
+      setLevel: (level) => set({ level: Math.min(100, Math.max(1, Math.round(level))) }),
+
       // ============ Skilltree / Klassen ============
 
       characterClass: null,
@@ -303,6 +316,7 @@ export const useBuildStore = create<BuildState>()(
           characterClass: null,
           selectedPassives: [],
           equipment: { ...EMPTY_EQUIPMENT },
+          level: 1,
         }),
 
       // ============ Lokale Build-Slots ============
@@ -362,6 +376,7 @@ export const useBuildStore = create<BuildState>()(
         selectedPassives: state.selectedPassives,
         equipment: equipmentToStoredIds(state.equipment),
         savedBuilds: sanitizeSavedBuilds(state.savedBuilds),
+        level: state.level,
       }),
 
       /**
@@ -414,6 +429,11 @@ export const useBuildStore = create<BuildState>()(
           }
 
           result.equipment = resolved;
+        }
+
+        // Level wiederherstellen
+        if (typeof stored.level === "number" && stored.level >= 1 && stored.level <= 100) {
+          result.level = stored.level;
         }
 
         // savedBuilds wiederherstellen
