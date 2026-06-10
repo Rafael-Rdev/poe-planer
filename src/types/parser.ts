@@ -15,6 +15,8 @@ import type { SocketData, EquipmentSlots } from "@/context/buildStore";
 export interface ParsedBuildResult {
   /** Erkannte Charakterklasse (ID) oder null */
   characterClass: string | null;
+  /** Charakter-Level (1–100), falls aus dem Build extrahierbar */
+  level?: number;
   /** Gemmen-Sockets (6 Slots, null = leer) */
   sockets: SocketData[];
   /** IDs der ausgewählten passiven Talente */

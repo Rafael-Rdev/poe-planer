@@ -34,6 +34,7 @@ import type { SocketData, EquipmentSlots } from "@/context/buildStore";
 
 export interface PobParseResult {
   characterClass: string | null;
+  level: number | null;
   sockets: SocketData[];
   selectedPassives: string[];
   equipment: EquipmentSlots;
@@ -227,6 +228,20 @@ function extractClass(xml: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Extrahiert das Charakter-Level aus dem <Build>-Tag.
+ * PoB-XML: <Build level="X" className="...">
+ */
+function extractLevel(xml: string): number | null {
+  const buildMatch = /<Build[^>]*>/i.exec(xml);
+  if (!buildMatch) return null;
+  const levelStr = getAttr(buildMatch[0], "level");
+  if (!levelStr) return null;
+  const level = parseInt(levelStr, 10);
+  if (isNaN(level) || level < 1 || level > 100) return null;
+  return level;
 }
 
 /**
@@ -469,6 +484,11 @@ export function parsePobXml(xmlString: string): PobParseResult {
     console.warn("[pobParser] Fehler bei Klassen-Extraktion, ignoriert.");
   }
 
+  let level: number | null = null;
+  try { level = extractLevel(xmlString); } catch {
+    console.warn("[pobParser] Fehler bei Level-Extraktion, ignoriert.");
+  }
+
   let selectedPassives: string[] = [];
   try { selectedPassives = extractPassives(xmlString); } catch {
     console.warn("[pobParser] Fehler bei Passiv-Extraktion, ignoriert.");
@@ -487,6 +507,7 @@ export function parsePobXml(xmlString: string): PobParseResult {
 
   return {
     characterClass,
+    level,
     sockets,
     selectedPassives,
     equipment,

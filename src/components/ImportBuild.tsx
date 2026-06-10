@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, Copy, Check, CheckCircle, AlertTriangle, Loader2, Link, ClipboardCopy, ExternalLink } from "lucide-react";
+import { Upload, FileText, Copy, Check, CheckCircle, AlertTriangle, Loader2, Link, ClipboardCopy, ExternalLink, Code2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { translateBuildText } from "@/lib/parser";
 import { parseBuild, findParser } from "@/lib/parsers";
@@ -10,9 +10,15 @@ import { useBuildStore } from "@/context/buildStore";
 import ResetBuildButton from "@/components/ResetBuildButton";
 import LocalSaveSlots from "@/components/LocalSaveSlots";
 
+type Tab = "text" | "pob";
+
 export default function ImportBuild() {
   const router = useRouter();
-  const [input, setInput] = useState("");
+  const [activeTab, setActiveTab] = useState<Tab>("text");
+  const [textInput, setTextInput] = useState("");
+  const [pobInput, setPobInput] = useState("");
+
+  const input = activeTab === "text" ? textInput : pobInput;
 
   // Mount-Guard: verhindert router.push nach Unmount
   const isMounted = useRef(false);
@@ -31,19 +37,19 @@ export default function ImportBuild() {
   } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
-  // Store-Actions — gebatched via useShallow (ein Selector, ein Listener)
-  const { setSockets, setClass, setPassives, setAllEquipment } = useBuildStore(
+  // Store-Actions
+  const { setSockets, setClass, setPassives, setAllEquipment, setLevel } = useBuildStore(
     useShallow((s) => ({
       setSockets: s.setSockets,
       setClass: s.setClass,
       setPassives: s.setPassives,
       setAllEquipment: s.setAllEquipment,
+      setLevel: s.setLevel,
     }))
   );
 
-  // Toast-Timer-Ref für Cleanup bei Unmount (verhindert State-Leak)
+  // Toast-Timer-Ref
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -62,10 +68,8 @@ export default function ImportBuild() {
     setIsImporting(true);
 
     try {
-      // Strategy-Pattern: Registry findet den passenden Parser
       const parsed = await parseBuild(input.trim());
 
-      // Anzeigetext generieren (basierend auf dem ausgewählten Parser)
       let displayText: string | null = null;
       try {
         const parser = findParser(input.trim());
@@ -80,46 +84,29 @@ export default function ImportBuild() {
         displayText = translateBuildText(input);
       }
 
-      // State batch-updaten
-      if (parsed.characterClass) {
-        setClass(parsed.characterClass);
-      }
-      if (parsed.sockets.some((s) => s !== null)) {
-        setSockets(parsed.sockets);
-      }
-      if (parsed.selectedPassives.length > 0) {
-        setPassives(parsed.selectedPassives);
-      }
+      if (parsed.characterClass) setClass(parsed.characterClass);
+      if (parsed.level !== undefined) setLevel(parsed.level);
+      if (parsed.sockets.some((s) => s !== null)) setSockets(parsed.sockets);
+      if (parsed.selectedPassives.length > 0) setPassives(parsed.selectedPassives);
       setAllEquipment(parsed.equipment);
 
-      if (displayText !== null) {
-        setTranslated(displayText);
-      }
+      if (displayText !== null) setTranslated(displayText);
 
       const parts: string[] = [];
       if (parsed.characterClass) parts.push("Klasse");
+      if (parsed.level !== undefined) parts.push(`Level ${parsed.level}`);
       if (parsed.sockets.some((s) => s !== null)) parts.push("Gemmen");
       if (parsed.selectedPassives.length > 0) parts.push("Talente");
-      if (Object.values(parsed.equipment).some((v) => v !== null))
-        parts.push("Items");
+      if (Object.values(parsed.equipment).some((v) => v !== null)) parts.push("Items");
 
-      // Wenn keine Daten erkannt wurden, eine Warnung anzeigen
       if (parts.length === 0) {
-        showToast(
-          "error",
-          "Keine Build-Daten erkannt. Bitte überprüfe, ob es sich um einen gültigen Build handelt."
-        );
+        showToast("error", "Keine Build-Daten erkannt. Bitte überprüfe, ob es sich um einen gültigen Build handelt.");
       } else {
-        showToast(
-          "success",
-          `Build erfolgreich importiert! (${parts.join(", ")})`
-        );
+        showToast("success", `Build erfolgreich importiert! (${parts.join(", ")})`);
       }
 
       setTimeout(() => {
-        if (isMounted.current) {
-          router.push("/build");
-        }
+        if (isMounted.current) router.push("/build");
       }, 1500);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -163,73 +150,137 @@ export default function ImportBuild() {
           Build Importieren & Übersetzen
         </h1>
         <p className="mt-2 text-zinc-400">
-          Füge deinen englischen Build-Text, einen PoB-Code oder eine
-          Build-Planner-URL (maxroll.gg, pob.party …) ein und lass den
-          Build auf Deutsch (PS5-Terminologie) übersetzen.
+          Füge einen Build-Text, eine URL oder einen PoB-Code ein und lass den Build laden.
         </p>
       </div>
 
-      {/* Input Area */}
-      <div className="mb-6">
-        <label
-          htmlFor="build-input"
-          className="mb-2 block text-sm font-medium text-zinc-300"
+      {/* Tab switcher */}
+      <div className="mb-6 flex gap-1 rounded-lg border border-zinc-700 bg-zinc-900/50 p-1">
+        <button
+          onClick={() => setActiveTab("text")}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "text"
+              ? "bg-amber-600 text-white"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
         >
-          Build-Text, PoB-Code oder URL
-        </label>
-        <textarea
-          id="build-input"
-          rows={12}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={`Füge hier deinen Build-Text, PoB-Code oder eine Build-Planer-URL ein:\n\nText:  Playing a Mercenary Build. I'm using Lightning Arrow linked with Chain…\nPoB:   eNrtPW9… (Base64-Export aus Path of Building)\nURL:   https://maxroll.gg/poe2/planner/abc123… (maxroll.gg oder pob.party)`}
-          className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900/50 p-4 font-mono text-sm text-zinc-100 placeholder-zinc-600 focus:border-amber-600 focus:outline-none focus:ring-1 focus:ring-amber-600 transition-colors"
-        />
+          <FileText className="h-4 w-4" />
+          Text / URL
+        </button>
+        <button
+          onClick={() => setActiveTab("pob")}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "pob"
+              ? "bg-amber-600 text-white"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          <Code2 className="h-4 w-4" />
+          PoB-Code
+        </button>
       </div>
 
-      {/* Mobalytics-Anleitung */}
-      {/mobalytics\.gg/i.test(input.trim()) && (
-        <div className="-mt-4 mb-6 rounded-xl border border-amber-700/40 bg-amber-950/30 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <ExternalLink className="h-4 w-4 shrink-0 text-amber-400" />
-            <span className="text-sm font-semibold text-amber-300">
-              Mobalytics blockiert automatische Imports — hier ist wie es trotzdem geht:
-            </span>
+      {/* Tab: Text / URL */}
+      {activeTab === "text" && (
+        <>
+          <div className="mb-6">
+            <label htmlFor="build-input" className="mb-2 block text-sm font-medium text-zinc-300">
+              Build-Text oder URL
+            </label>
+            <textarea
+              id="build-input"
+              rows={12}
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder={`Füge hier deinen Build-Text oder eine Build-Planer-URL ein:\n\nText:  Playing a Mercenary Build. I'm using Lightning Arrow linked with Chain…\nURL:   https://maxroll.gg/poe2/planner/abc123… (maxroll.gg oder pob.party)`}
+              className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900/50 p-4 font-mono text-sm text-zinc-100 placeholder-zinc-600 focus:border-amber-600 focus:outline-none focus:ring-1 focus:ring-amber-600 transition-colors"
+            />
           </div>
-          <ol className="space-y-2 text-sm text-zinc-300">
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">1</span>
-              <span>Öffne deinen Mobalytics-Build im Browser</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">2</span>
-              <span>Scrolle zum Abschnitt <strong className="text-zinc-100">„Skills"</strong> oder <strong className="text-zinc-100">„Passives"</strong> und markiere den Build-Text</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">3</span>
-              <span>Alternativ: Klicke auf <strong className="text-zinc-100">„Copy Build"</strong> oder <strong className="text-zinc-100">„Export"</strong> falls vorhanden</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">4</span>
-              <span>Füge den kopierten Text oben ins Textfeld ein und klicke auf <strong className="text-zinc-100">„Build Importieren"</strong></span>
-            </li>
-          </ol>
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-zinc-700/50 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
-            <ClipboardCopy className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-            <span>Tipp: Auch ein roher Build-Text mit Gem-Namen funktioniert — z.B. aus einem Reddit-Post oder einem YouTube-Guide.</span>
-          </div>
-        </div>
+
+          {/* Mobalytics-Anleitung */}
+          {/mobalytics\.gg/i.test(textInput.trim()) && (
+            <div className="-mt-4 mb-6 rounded-xl border border-amber-700/40 bg-amber-950/30 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <ExternalLink className="h-4 w-4 shrink-0 text-amber-400" />
+                <span className="text-sm font-semibold text-amber-300">
+                  Mobalytics blockiert automatische Imports — hier ist wie es trotzdem geht:
+                </span>
+              </div>
+              <ol className="space-y-2 text-sm text-zinc-300">
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">1</span>
+                  <span>Öffne deinen Mobalytics-Build im Browser</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">2</span>
+                  <span>Scrolle zum Abschnitt <strong className="text-zinc-100">„Skills"</strong> oder <strong className="text-zinc-100">„Passives"</strong> und markiere den Build-Text</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">3</span>
+                  <span>Alternativ: Klicke auf <strong className="text-zinc-100">„Copy Build"</strong> oder <strong className="text-zinc-100">„Export"</strong> falls vorhanden</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/50 text-[10px] font-bold text-amber-300">4</span>
+                  <span>Füge den kopierten Text oben ins Textfeld ein und klicke auf <strong className="text-zinc-100">„Build Importieren"</strong></span>
+                </li>
+              </ol>
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-zinc-700/50 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
+                <ClipboardCopy className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+                <span>Tipp: Auch ein roher Build-Text mit Gem-Namen funktioniert — z.B. aus einem Reddit-Post oder einem YouTube-Guide.</span>
+              </div>
+            </div>
+          )}
+
+          {/* URL-Erkennungshinweis */}
+          {/^https?:\/\//i.test(textInput.trim()) && !/mobalytics\.gg/i.test(textInput.trim()) && (
+            <div className="-mt-4 mb-6 flex items-center gap-2 rounded-lg border border-blue-700/40 bg-blue-900/20 px-4 py-2 text-sm text-blue-300">
+              <Link className="h-4 w-4 shrink-0" />
+              <span>URL erkannt – die Seite wird abgerufen und nach Build-Daten durchsucht.</span>
+            </div>
+          )}
+        </>
       )}
 
-      {/* URL-Erkennungshinweis (alle anderen URLs) */}
-      {/^https?:\/\//i.test(input.trim()) && !/mobalytics\.gg/i.test(input.trim()) && (
-        <div className="-mt-4 mb-6 flex items-center gap-2 rounded-lg border border-blue-700/40 bg-blue-900/20 px-4 py-2 text-sm text-blue-300">
-          <Link className="h-4 w-4 shrink-0" />
-          <span>
-            URL erkannt – die Seite wird abgerufen und nach Build-Daten
-            durchsucht.
-          </span>
-        </div>
+      {/* Tab: PoB-Code */}
+      {activeTab === "pob" && (
+        <>
+          <div className="mb-6">
+            <label htmlFor="pob-input" className="mb-2 block text-sm font-medium text-zinc-300">
+              Path of Building Code
+            </label>
+            <textarea
+              id="pob-input"
+              rows={6}
+              value={pobInput}
+              onChange={(e) => setPobInput(e.target.value)}
+              placeholder="eNrtPW9zoziy9/tTeefDTtVkJCEJqEol2Djjf2Mb4385t7a2ZGxiM8bgA2x29tlfvwI7TmY2M..."
+              className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900/50 p-4 font-mono text-sm text-zinc-100 placeholder-zinc-600 focus:border-amber-600 focus:outline-none focus:ring-1 focus:ring-amber-600 transition-colors"
+            />
+          </div>
+
+          {/* PoB Hilfe */}
+          <div className="-mt-4 mb-6 rounded-xl border border-zinc-700/50 bg-zinc-900/40 p-4">
+            <p className="mb-3 text-sm font-semibold text-zinc-300">So erhältst du deinen PoB-Code:</p>
+            <ol className="space-y-2 text-sm text-zinc-400">
+              <li className="flex gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-bold text-zinc-300">1</span>
+                <span>Öffne <strong className="text-zinc-200">Path of Building Community</strong> und lade deinen Build</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-bold text-zinc-300">2</span>
+                <span>Klicke oben links auf <strong className="text-zinc-200">Gear → Copy Build Code</strong></span>
+              </li>
+              <li className="flex gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-bold text-zinc-300">3</span>
+                <span>Füge den kopierten Code in das Feld oben ein</span>
+              </li>
+            </ol>
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-zinc-700/50 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-400">
+              <Code2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+              <span>Klasse, Level, Gems, Passive und Items werden automatisch erkannt – sofern sie in unserer Datenbank vorhanden sind.</span>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Import Button + Reset */}
@@ -247,7 +298,7 @@ export default function ImportBuild() {
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              Build Importieren & Übersetzen
+              Build Importieren
             </>
           )}
         </button>

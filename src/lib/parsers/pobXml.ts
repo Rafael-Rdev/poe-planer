@@ -44,6 +44,9 @@ export const pobXmlParser: BuildParser = {
       return emptyBuildResult();
     }
 
-    return result;
+    return {
+      ...result,
+      level: result.level ?? undefined,
+    };
   },
 };
