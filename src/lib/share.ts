@@ -151,7 +151,7 @@ export function generateShareUrl(state: ShareState): string {
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
-      : "https://poe2-build-planer.app";
+      : "https://poe-2-build.vercel.app";
   return `${origin}/?build=${encoded}`;
 }
 
