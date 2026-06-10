@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09090b;
+  --foreground: #fafafa;
 }
 
 @theme inline {
@@ -12,15 +12,248 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+}
+
+/* PoE-styled scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #18181b;
+}
+::-webkit-scrollbar-thumb {
+  background: #a16207;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ca8a04;
+}
+
+/* PoE rarity colors */
+.text-normal {
+  color: #c8c8c8;
+}
+.text-magic {
+  color: #8888ff;
+}
+.text-rare {
+  color: #ffff77;
+}
+.text-unique {
+  color: #af6025;
+}
+.text-gem {
+  color: #1ba29b;
+}
+.text-currency {
+  color: #aa9e82;
+}
+
+/* ============================================================
+   RPG INVENTAR-SLOT STYLES
+   ============================================================ */
+
+/* Item-Name Raritätsfarben – Amber-Töne für Rare/Unique */
+.item-name-rarity.rarity-normal {
+  color: #b0b0b0;
+  text-shadow: none;
+}
+.item-name-rarity.rarity-magic {
+  color: #8888ff;
+  text-shadow: 0 0 4px rgba(136, 136, 255, 0.2);
+}
+.item-name-rarity.rarity-rare {
+  color: #e2a83e;
+  text-shadow: 0 0 6px rgba(245, 158, 11, 0.25);
+}
+.item-name-rarity.rarity-unique {
+  color: #f59e0b;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.35), 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+/* Diablo-artige Eckornamente für Slots */
+.slot-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  z-index: 1;
+}
+.slot-corner::before,
+.slot-corner::after {
+  content: "";
+  position: absolute;
+  background: rgb(245 158 11 / 0.5);
+}
+
+/* Oben Links */
+.slot-corner-tl {
+  top: -1px;
+  left: -1px;
+}
+.slot-corner-tl::before {
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 1px;
+}
+.slot-corner-tl::after {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 8px;
+}
+
+/* Oben Rechts */
+.slot-corner-tr {
+  top: -1px;
+  right: -1px;
+}
+.slot-corner-tr::before {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 1px;
+}
+.slot-corner-tr::after {
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 8px;
+}
+
+/* Unten Links */
+.slot-corner-bl {
+  bottom: -1px;
+  left: -1px;
+}
+.slot-corner-bl::before {
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  height: 1px;
+}
+.slot-corner-bl::after {
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 8px;
+}
+
+/* Unten Rechts */
+.slot-corner-br {
+  bottom: -1px;
+  right: -1px;
+}
+.slot-corner-br::before {
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 1px;
+}
+.slot-corner-br::after {
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  height: 8px;
+}
+
+/* Hover: Eckornamente leuchten stärker */
+.rpg-slot:hover .slot-corner::before,
+.rpg-slot:hover .slot-corner::after {
+  background: rgb(245 158 11 / 0.8);
+  transition: background 0.25s ease;
+}
+.rpg-slot:hover .slot-corner-tl,
+.rpg-slot:hover .slot-corner-tr,
+.rpg-slot:hover .slot-corner-bl,
+.rpg-slot:hover .slot-corner-br {
+  filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.5));
+}
+
+/* Animierter Puls für Unique-Items */
+@keyframes uniquePulse {
+  0%, 100% {
+    box-shadow: 0 0 18px 3px rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 24px 6px rgba(245, 158, 11, 0.35);
+  }
+}
+.rpg-slot:has(.rarity-unique) {
+  animation: uniquePulse 2.5s ease-in-out infinite;
+}
+
+/* Dropdown-Listen-Styling für das RPG-Feeling */
+.rpg-slot .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #a16207 #27272a;
+}
+
+/* ============================================================
+   INVENTORY GRID – Responsive RPG-Layout
+   ============================================================ */
+
+/* Desktop: 3-spaltig – Helm zentriert oben, Chest mittig */
+.inventory-grid {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-areas:
+    "helmet  helmet  helmet"
+    "weapon1 chest   offhand"
+    "weapon2 gloves  belt"
+    ".       boots   ."
+    "ring1   amulet  ring2";
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* Tablet & Mobil: 2-spaltig */
+@media (max-width: 639px) {
+  .inventory-grid {
+    gap: 0.5rem;
+    grid-template-areas:
+      "helmet  helmet"
+      "weapon1 chest"
+      "weapon2 offhand"
+      "gloves  belt"
+      "boots   boots"
+      "ring1   ring2"
+      "amulet  amulet";
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Raritäts-Glow (Schatten + Border) – DEPRECATED, durch Inline-Styles ersetzt */
+.glow-unique {
+  box-shadow: 0 0 12px 2px rgba(175, 96, 37, 0.25);
+  border-color: rgb(217 119 6 / 0.7);
+}
+.glow-rare {
+  box-shadow: 0 0 8px 1px rgba(255, 255, 119, 0.15);
+  border-color: rgb(245 158 11 / 0.4);
+}
+.glow-magic {
+  box-shadow: 0 0 6px 1px rgba(136, 136, 255, 0.10);
+  border-color: rgb(82 82 91 / 0.8);
+}
+.glow-normal {
+  border-color: rgb(63 63 70 / 0.5);
+}
+
+/* Raritäts-Border (nur Rahmenfarbe) */
+.border-unique {
+  border-color: rgb(217 119 6 / 0.7);
+}
+.border-rare {
+  border-color: rgb(245 158 11 / 0.4);
+}
+.border-magic {
+  border-color: rgb(29 78 216 / 0.5);
+}
+.border-normal {
+  border-color: rgb(63 63 70 / 0.5);
 }
