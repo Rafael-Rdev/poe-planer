@@ -416,8 +416,12 @@ export default function ImportBuild() {
                       ok={fileParseResult.level !== undefined}
                     />
                     <Stat
-                      label="Passive"
-                      value={`${fileParseResult.stats.passivesRecognized} / ${fileParseResult.stats.passivesTotal}`}
+                      label="Notables"
+                      value={(() => {
+                        const { passivesTotal, passivesRecognized, passivesSmallNodes } = fileParseResult.stats;
+                        const notableTotal = passivesTotal - passivesSmallNodes;
+                        return `${passivesRecognized} / ${notableTotal}`;
+                      })()}
                       ok={fileParseResult.stats.passivesRecognized > 0}
                     />
                     <Stat
@@ -426,9 +430,10 @@ export default function ImportBuild() {
                       ok={fileParseResult.stats.gemsRecognized > 0}
                     />
                   </div>
-                  {fileParseResult.stats.passivesRecognized < fileParseResult.stats.passivesTotal && (
+                  {/* Erklärung kleine Stat-Knoten */}
+                  {fileParseResult.stats.passivesSmallNodes > 0 && (
                     <p className="text-xs text-zinc-500">
-                      Nicht alle Passive/Gems wurden in der Datenbank gefunden — vermutlich numerische IDs oder Einträge die noch nicht in der DB sind.
+                      +{fileParseResult.stats.passivesSmallNodes} kleine Stat-Knoten (z.B. +% Angriffsgeschwindigkeit) — nicht in der DB, nur Notables werden importiert.
                     </p>
                   )}
                 </div>
