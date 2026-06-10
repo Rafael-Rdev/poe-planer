@@ -1,5 +1,5 @@
-import ImportBuild from "@/components/ImportBuild";
+import BuildPage from "@/app/build/page";
 
 export default function Home() {
-  return <ImportBuild />;
+  return <BuildPage />;
 }

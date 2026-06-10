@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import ImportBuild from "@/components/ImportBuild";
 
 export default function ImportPage() {
-  redirect("/");
+  return <ImportBuild />;
 }
