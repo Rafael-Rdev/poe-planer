@@ -8,7 +8,79 @@
  * Mistral ist OpenAI-kompatibel: SSE-Streaming über chat/completions.
  */
 
-const SYSTEM_PROMPT = `Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`;
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// ─── Übersetzungs-Dictionary laden ──────────────────────────────────────────
+
+interface TranslationDict {
+  skills: Record<string, string>;
+  stats: Record<string, string>;
+  metadata?: {
+    source: string;
+    fetchedAt: string;
+    skillCount: number;
+    statCount: number;
+    totalCount: number;
+  };
+}
+
+/**
+ * Lädt die poe2-translations.json und baut daraus einen Prompt-Abschnitt
+ * mit Known-Good-Übersetzungen für den KI-Übersetzer.
+ *
+ * Format: kompakter "key=value"-Stil für minimale Token-Nutzung.
+ * Sortiert nach Länge absteigend (längere Phrasen zuerst).
+ */
+function loadTranslationsPrompt(): string {
+  try {
+    const filePath = resolve(process.cwd(), "scripts", "poe2-translations.json");
+    const raw = readFileSync(filePath, "utf-8");
+    const dict: TranslationDict = JSON.parse(raw);
+
+    const entries: Array<[string, string]> = [];
+
+    if (dict.skills) {
+      for (const [en, de] of Object.entries(dict.skills)) {
+        entries.push([en, de]);
+      }
+    }
+    if (dict.stats) {
+      for (const [en, de] of Object.entries(dict.stats)) {
+        // Vermeide Duplikate (falls ein Begriff sowohl in skills als auch stats steht)
+        if (!dict.skills || !(en in dict.skills)) {
+          entries.push([en, de]);
+        }
+      }
+    }
+
+    if (entries.length === 0) return "";
+
+    // Nach Länge absteigend sortieren (längere Matches zuerst = bessere KI-Referenz)
+    entries.sort((a, b) => b[0].length - a[0].length);
+
+    const lines = entries.map(([en, de]) => `${en}=${de}`);
+    const countInfo = dict.metadata
+      ? ` (${dict.metadata.totalCount} offizielle Begriffe, Quelle: ${dict.metadata.source})`
+      : ` (${entries.length} Begriffe)`;
+
+    return [
+      `BEKANNTE OFFIZIELLE ÜBERSETZUNGEN${countInfo} – Englisch=Deutsch:`,
+      ...lines,
+    ].join("\n");
+  } catch {
+    console.warn(
+      "[translate/route] poe2-translations.json nicht gefunden – verwende Basis-Prompt."
+    );
+    return "";
+  }
+}
+
+const TRANSLATIONS_PROMPT = loadTranslationsPrompt();
+
+const SYSTEM_PROMPT = TRANSLATIONS_PROMPT
+  ? `Du bist ein Übersetzer für Path of Exile 2.\n\n${TRANSLATIONS_PROMPT}\n\nWEISUNGEN:\n- Verwende AUSSCHLIESSLICH die oben genannten offiziellen Übersetzungen.\n- Wenn ein Begriff nicht in der Liste steht, lass ihn auf Englisch.\n- Übersetze NUR was auf den Screenshots sichtbar ist.\n- Erfinde keine fehlenden Details.\n- Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`
+  : `Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`;
 
 export async function POST(request: Request) {
   const apiKey = process.env.MISTRAL_API_KEY;
