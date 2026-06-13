@@ -1,5 +1,3 @@
-import ImportBuild from "@/components/ImportBuild";
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/translate"); }
 
-export default function ImportPage() {
-  return <ImportBuild />;
-}
