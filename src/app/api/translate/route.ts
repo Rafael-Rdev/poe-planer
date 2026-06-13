@@ -30,62 +30,7 @@ interface TranslationDict {
   };
 }
 
-/**
- * Lädt die poe2-translations.json und baut daraus einen Prompt-Abschnitt
- * mit Known-Good-Übersetzungen für den KI-Übersetzer.
- *
- * Format: kompakter "key=value"-Stil für minimale Token-Nutzung.
- * Sortiert nach Länge absteigend (längere Phrasen zuerst).
- */
-function loadTranslationsPrompt(): string {
-  try {
-    const filePath = resolve(process.cwd(), "scripts", "poe2-translations.json");
-    const raw = readFileSync(filePath, "utf-8");
-    const dict: TranslationDict = JSON.parse(raw);
-
-    const entries: Array<[string, string]> = [];
-
-    if (dict.skills) {
-      for (const [en, de] of Object.entries(dict.skills)) {
-        entries.push([en, de]);
-      }
-    }
-    if (dict.stats) {
-      for (const [en, de] of Object.entries(dict.stats)) {
-        // Vermeide Duplikate (falls ein Begriff sowohl in skills als auch stats steht)
-        if (!dict.skills || !(en in dict.skills)) {
-          entries.push([en, de]);
-        }
-      }
-    }
-
-    if (entries.length === 0) return "";
-
-    // Nach Länge absteigend sortieren (längere Matches zuerst = bessere KI-Referenz)
-    entries.sort((a, b) => b[0].length - a[0].length);
-
-    const lines = entries.map(([en, de]) => `${en}=${de}`);
-    const countInfo = dict.metadata
-      ? ` (${dict.metadata.totalCount} offizielle Begriffe, Quelle: ${dict.metadata.source})`
-      : ` (${entries.length} Begriffe)`;
-
-    return [
-      `ZINGEND VORGESCHRIEBENE ÜBERSETZUNGEN${countInfo} – Englisch → Deutsch (MÜSSEN exakt so verwendet werden, keine Ausnahmen):`,
-      ...lines,
-    ].join("\n");
-  } catch {
-    console.warn(
-      "[translate/route] poe2-translations.json nicht gefunden – verwende Basis-Prompt."
-    );
-    return "";
-  }
-}
-
-const TRANSLATIONS_PROMPT = loadTranslationsPrompt();
-
-const SYSTEM_PROMPT = TRANSLATIONS_PROMPT
-  ? `Du bist ein Übersetzer für Path of Exile 2.\n\n${TRANSLATIONS_PROMPT}\n\nZINGENDE ANWEISUNGEN – BEI NICHTBEACHTUNG IST DAS ERGEBNIS UNBRAUCHBAR:\n\n1. Du MUSST JEDEN einzelnen der oben gelisteten englischen Begriffe durch die exakt angegebene deutsche Übersetzung ersetzen. Keine Ausnahmen. Keine Abweichungen. Kein Ermessensspielraum.\n2. Englische Originalbegriffe sind STRENGSTENS VERBOTEN, wenn eine deutsche Übersetzung in der Liste existiert. Auch dann verboten, wenn du denkst, der englische Begriff sei "besser" oder "gebräuchlicher".\n3. Die obige Liste ist eine ZINGENDE VORSCHRIFT, kein Vorschlag. Es handelt sich um bindende Anweisungen, nicht um Empfehlungen.\n4. Nur Begriffe, die WIRKLICH NICHT in der obigen Liste stehen, dürfen unverändert auf Englisch bleiben.\n5. Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details.\n6. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`
-  : `Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`;
+const SYSTEM_PROMPT = `Du bist ein Übersetzer für Path of Exile 2 Build-Guides. Übersetze den folgenden englischen Text ins Deutsche. Übersetze natürlichsprachliche Beschreibungen, behalte aber Spielbegriffe (Skill-Namen, Item-Namen, Stats) möglichst im englischen Original – die werden später automatisch ersetzt. Antworte NUR mit der deutschen Übersetzung, ohne Erklärungen.`;
 
 // ─── Regex-Hilfsfunktionen ──────────────────────────────────────────────────
 
