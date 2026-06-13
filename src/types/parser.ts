@@ -9,6 +9,18 @@
 import type { SocketData, EquipmentSlots } from "@/context/buildStore";
 
 /**
+ * Ein einzelner Skill-Eintrag mit Akt-Zuordnung.
+ */
+export interface BuildSkill {
+  /** ID der aktiven Gemme */
+  activeGemId: string;
+  /** IDs der verlinkten Support-Gemmen */
+  supportGemIds: string[];
+  /** Akt-Zuordnung (Act I, Act II, Act III, Act IV) */
+  act: number;
+}
+
+/**
  * Einheitliches Ergebnis eines Build-Parsers.
  * Wird von allen Parser-Strategien zurückgegeben.
  */
@@ -23,6 +35,16 @@ export interface ParsedBuildResult {
   selectedPassives: string[];
   /** Ausrüstung pro Slot */
   equipment: EquipmentSlots;
+  /** Build-Name (z. B. "Frostblink Sorc") */
+  buildName?: string;
+  /** Autor des Builds */
+  author?: string;
+  /** Ascendancy-Klasse (englisch, z. B. "Stormweaver") */
+  ascendancy?: string;
+  /** Kurzbeschreibung des Builds */
+  description?: string;
+  /** Skills gruppiert nach Akt (Act I–IV) */
+  skillsByAct?: BuildSkill[];
 }
 
 /**

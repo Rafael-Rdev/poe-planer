@@ -4,7 +4,8 @@
  * Speichert bis zu 6 gesockelte Gemmen-ID (Slot 0 = aktive Gemme,
  * Slots 1-5 = Support-Gemmen) und erlaubt das Setzen/Leeren einzelner Slots.
  *
- * Erweitert um characterClass (Klasse) und selectedPassives (aktive Talente).
+ * Erweitert um characterClass (Klasse), selectedPassives (aktive Talente),
+ * Build-Metadaten (Name, Autor, Ascendancy, Beschreibung) und Skills-nach-Akt.
  *
  * === Storage-Strategie ===
  * Equipment-Items werden nur als IDs gespeichert, nicht als vollständige Objekte.
@@ -15,6 +16,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { getItemById } from "@/data/items";
 import type { Item } from "../data/items";
+import type { BuildSkill } from "../types/parser";
 
 export type SocketData = string | null;
 
@@ -53,6 +55,12 @@ export interface SavedBuildData {
   characterClass: string | null;
   selectedPassives: string[];
   equipment: StoredEquipmentIds;
+  level?: number;
+  buildName?: string;
+  author?: string;
+  ascendancy?: string;
+  description?: string;
+  skillsByAct?: BuildSkill[];
 }
 
 export interface BuildState {
@@ -97,9 +105,35 @@ export interface BuildState {
   /** Setzt alle Ausrüstungs-Slots auf einmal (für Import/URL-Load) */
   setAllEquipment: (equipment: EquipmentSlots) => void;
 
+  // ============ Build-Metadaten ============
+
+  /** Build-Name (z. B. "Frostblink Sorc") */
+  buildName: string;
+  /** Setzt den Build-Namen */
+  setBuildName: (name: string) => void;
+  /** Autor des Builds */
+  author: string;
+  /** Setzt den Autor */
+  setAuthor: (author: string) => void;
+  /** Ascendancy-Klasse (englisch, z. B. "Stormweaver") */
+  ascendancy: string;
+  /** Setzt die Ascendancy */
+  setAscendancy: (ascendancy: string) => void;
+  /** Kurzbeschreibung des Builds */
+  description: string;
+  /** Setzt die Beschreibung */
+  setDescription: (description: string) => void;
+
+  // ============ Skills nach Akt ============
+
+  /** Skills gruppiert nach Akt (Act I–IV) */
+  skillsByAct: BuildSkill[];
+  /** Setzt alle Skills-nach-Akt (für Import) */
+  setSkillsByAct: (skills: BuildSkill[]) => void;
+
   // ============ Build zurücksetzen ============
 
-  /** Setzt den gesamten Build zurück (Sockets, Ausrüstung, Talente, Klasse) */
+  /** Setzt den gesamten Build zurück (Sockets, Ausrüstung, Talente, Klasse, Metadaten) */
   resetBuild: () => void;
 
   // ============ Lokale Build-Slots (Browser-Speicher) ============
@@ -195,6 +229,22 @@ function sanitizeSavedBuilds(
           )
         : [],
       equipment: sanitizeEquipmentIds(build.equipment),
+      level:
+        typeof build.level === "number" && build.level >= 1 && build.level <= 100
+          ? build.level
+          : undefined,
+      buildName: typeof build.buildName === "string" ? build.buildName : undefined,
+      author: typeof build.author === "string" ? build.author : undefined,
+      ascendancy: typeof build.ascendancy === "string" ? build.ascendancy : undefined,
+      description: typeof build.description === "string" ? build.description : undefined,
+      skillsByAct: Array.isArray(build.skillsByAct)
+        ? build.skillsByAct.filter(
+            (s): s is BuildSkill =>
+              typeof s === "object" && s !== null &&
+              typeof s.activeGemId === "string" &&
+              Array.isArray(s.supportGemIds)
+          )
+        : undefined,
     };
   }
   return sanitized;
@@ -308,6 +358,25 @@ export const useBuildStore = create<BuildState>()(
 
       setAllEquipment: (equipment: EquipmentSlots) => set({ equipment: { ...equipment } }),
 
+      // ============ Build-Metadaten ============
+
+      buildName: "",
+      setBuildName: (name) => set({ buildName: name }),
+
+      author: "",
+      setAuthor: (author) => set({ author }),
+
+      ascendancy: "",
+      setAscendancy: (ascendancy) => set({ ascendancy }),
+
+      description: "",
+      setDescription: (description) => set({ description }),
+
+      // ============ Skills nach Akt ============
+
+      skillsByAct: [],
+      setSkillsByAct: (skills) => set({ skillsByAct: skills }),
+
       // ============ Build zurücksetzen ============
 
       resetBuild: () =>
@@ -317,6 +386,11 @@ export const useBuildStore = create<BuildState>()(
           selectedPassives: [],
           equipment: { ...EMPTY_EQUIPMENT },
           level: 1,
+          buildName: "",
+          author: "",
+          ascendancy: "",
+          description: "",
+          skillsByAct: [],
         }),
 
       // ============ Lokale Build-Slots ============
@@ -330,6 +404,12 @@ export const useBuildStore = create<BuildState>()(
             characterClass: state.characterClass,
             selectedPassives: [...state.selectedPassives],
             equipment: equipmentToStoredIds(state.equipment),
+            level: state.level,
+            buildName: state.buildName,
+            author: state.author,
+            ascendancy: state.ascendancy,
+            description: state.description,
+            skillsByAct: [...state.skillsByAct],
           };
           const next = { ...state.savedBuilds, [name]: data };
           // Enforce maximal 5 Build-Slots (defensiv, UI zeigt 3)
@@ -349,6 +429,12 @@ export const useBuildStore = create<BuildState>()(
             characterClass: data.characterClass,
             selectedPassives: [...data.selectedPassives],
             equipment: storedIdsToEquipment(data.equipment),
+            level: data.level ?? state.level,
+            buildName: data.buildName ?? "",
+            author: data.author ?? "",
+            ascendancy: data.ascendancy ?? "",
+            description: data.description ?? "",
+            skillsByAct: data.skillsByAct ?? [],
           };
         }),
 
@@ -364,7 +450,7 @@ export const useBuildStore = create<BuildState>()(
       name: "poe2-build-storage",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 3,
+      version: 4,
 
       /**
        * partialize: Wird VOR dem Speichern aufgerufen.
@@ -377,6 +463,11 @@ export const useBuildStore = create<BuildState>()(
         equipment: equipmentToStoredIds(state.equipment),
         savedBuilds: sanitizeSavedBuilds(state.savedBuilds),
         level: state.level,
+        buildName: state.buildName,
+        author: state.author,
+        ascendancy: state.ascendancy,
+        description: state.description,
+        skillsByAct: state.skillsByAct,
       }),
 
       /**
@@ -401,6 +492,22 @@ export const useBuildStore = create<BuildState>()(
         if (Array.isArray(stored.selectedPassives)) {
           result.selectedPassives = stored.selectedPassives.filter(
             (id: unknown): id is string => typeof id === "string"
+          );
+        }
+
+        // Build-Metadaten wiederherstellen
+        if (typeof stored.buildName === "string") result.buildName = stored.buildName;
+        if (typeof stored.author === "string") result.author = stored.author;
+        if (typeof stored.ascendancy === "string") result.ascendancy = stored.ascendancy;
+        if (typeof stored.description === "string") result.description = stored.description;
+
+        // SkillsByAct wiederherstellen
+        if (Array.isArray(stored.skillsByAct)) {
+          result.skillsByAct = stored.skillsByAct.filter(
+            (s: unknown): s is BuildSkill =>
+              typeof s === "object" && s !== null &&
+              typeof (s as BuildSkill).activeGemId === "string" &&
+              Array.isArray((s as BuildSkill).supportGemIds)
           );
         }
 
