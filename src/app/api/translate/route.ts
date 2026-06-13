@@ -65,7 +65,7 @@ function loadTranslationsPrompt(): string {
       : ` (${entries.length} Begriffe)`;
 
     return [
-      `BEKANNTE OFFIZIELLE ÜBERSETZUNGEN${countInfo} – Englisch=Deutsch:`,
+      `ZINGEND VORGESCHRIEBENE ÜBERSETZUNGEN${countInfo} – Englisch → Deutsch (MÜSSEN exakt so verwendet werden, keine Ausnahmen):`,
       ...lines,
     ].join("\n");
   } catch {
@@ -79,7 +79,7 @@ function loadTranslationsPrompt(): string {
 const TRANSLATIONS_PROMPT = loadTranslationsPrompt();
 
 const SYSTEM_PROMPT = TRANSLATIONS_PROMPT
-  ? `Du bist ein Übersetzer für Path of Exile 2.\n\n${TRANSLATIONS_PROMPT}\n\nWEISUNGEN:\n- Verwende AUSSCHLIESSLICH die oben genannten offiziellen Übersetzungen.\n- Wenn ein Begriff nicht in der Liste steht, lass ihn auf Englisch.\n- Übersetze NUR was auf den Screenshots sichtbar ist.\n- Erfinde keine fehlenden Details.\n- Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`
+  ? `Du bist ein Übersetzer für Path of Exile 2.\n\n${TRANSLATIONS_PROMPT}\n\nZINGENDE ANWEISUNGEN – BEI NICHTBEACHTUNG IST DAS ERGEBNIS UNBRAUCHBAR:\n\n1. Du MUSST JEDEN einzelnen der oben gelisteten englischen Begriffe durch die exakt angegebene deutsche Übersetzung ersetzen. Keine Ausnahmen. Keine Abweichungen. Kein Ermessensspielraum.\n2. Englische Originalbegriffe sind STRENGSTENS VERBOTEN, wenn eine deutsche Übersetzung in der Liste existiert. Auch dann verboten, wenn du denkst, der englische Begriff sei "besser" oder "gebräuchlicher".\n3. Die obige Liste ist eine ZINGENDE VORSCHRIFT, kein Vorschlag. Es handelt sich um bindende Anweisungen, nicht um Empfehlungen.\n4. Nur Begriffe, die WIRKLICH NICHT in der obigen Liste stehen, dürfen unverändert auf Englisch bleiben.\n5. Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details.\n6. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`
   : `Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`;
 
 export async function POST(request: Request) {
