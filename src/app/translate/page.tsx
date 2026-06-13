@@ -93,6 +93,64 @@ function MarkdownOutput({ content }: { content: string }) {
   return <div className="py-2">{nodes}</div>;
 }
 
+// ─── Bild-Komprimierung (Canvas-API) ───────────────────────────────────────────
+
+/**
+ * Komprimiert ein Bild mit der Canvas-API auf max. 1280px Breite
+ * und gibt es als JPEG-base64-dataURL zurück.
+ * Bei Fehlern wird das Original-File unverändert verwendet.
+ */
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      const MAX_WIDTH = 1280;
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
+
+      if (width > MAX_WIDTH) {
+        height = Math.round((height * MAX_WIDTH) / width);
+        width = MAX_WIDTH;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        // Canvas nicht verfügbar → Original-Datei als dataURL zurückgeben
+        fallbackToOriginalDataUrl(file, resolve);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      fallbackToOriginalDataUrl(file, resolve);
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+function fallbackToOriginalDataUrl(
+  file: File,
+  resolve: (value: string) => void
+): void {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result as string);
+  reader.onerror = () => resolve("");
+  reader.readAsDataURL(file);
+}
+
 // ─── Haupt-Komponente ─────────────────────────────────────────────────────────
 
 export default function TranslatePage() {
@@ -133,22 +191,36 @@ export default function TranslatePage() {
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     Array.from(files).forEach((file) => {
       if (!allowed.includes(file.type)) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        const base64 = result.split(",")[1];
+
+      const addImage = (dataUrl: string, mediaType: string) => {
+        const base64 = dataUrl.split(",")[1] ?? "";
         setImages((prev) => [
           ...prev,
           {
             id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             file,
             data: base64,
-            mediaType: file.type,
+            mediaType,
             preview: URL.createObjectURL(file),
           },
         ]);
       };
-      reader.readAsDataURL(file);
+
+      compressImage(file)
+        .then((dataUrl) => {
+          const mediaType =
+            dataUrl.match(/data:(.+);base64/)?.[1] ?? "image/jpeg";
+          addImage(dataUrl, mediaType);
+        })
+        .catch(() => {
+          // Fallback: falls compressImage komplett fehlschlägt, Original lesen
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            addImage(result, file.type);
+          };
+          reader.readAsDataURL(file);
+        });
     });
   }, []);
 
