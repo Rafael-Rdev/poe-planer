@@ -16,7 +16,12 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// ─── Übersetzungs-Dictionary laden ──────────────────────────────────────────
+// ─── Limits ──────────────────────────────────────────────────────────────────
+
+const MAX_TEXT_CHARS = 30_000;
+const MAX_IMAGES = 5;
+
+// ─── Übersetzungs-Dictionary (einmalig auf Modul-Level cachen) ───────────────
 
 interface TranslationDict {
   skills: Record<string, string>;
@@ -28,6 +33,45 @@ interface TranslationDict {
     statCount: number;
     totalCount: number;
   };
+}
+
+let _dictEntries: Array<[string, string]> | null = null;
+
+function getDictEntries(): Array<[string, string]> {
+  if (_dictEntries !== null) return _dictEntries;
+
+  try {
+    const filePath = resolve(process.cwd(), "scripts", "poe2-translations.json");
+    const raw = readFileSync(filePath, "utf-8");
+    const dict: TranslationDict = JSON.parse(raw);
+
+    const entries: Array<[string, string]> = [];
+    if (dict.skills) {
+      for (const [en, de] of Object.entries(dict.skills)) {
+        entries.push([en, de]);
+      }
+    }
+    if (dict.stats) {
+      for (const [en, de] of Object.entries(dict.stats)) {
+        if (!dict.skills || !(en in dict.skills)) {
+          entries.push([en, de]);
+        }
+      }
+    }
+
+    // Nach Länge absteigend sortieren: längere Phrasen zuerst ersetzen,
+    // damit z.B. "Lightning Arrow" vor "Arrow" gematcht wird.
+    entries.sort((a, b) => b[0].length - a[0].length);
+    _dictEntries = entries;
+  } catch (err) {
+    console.warn(
+      "[translate/route] Dictionary laden fehlgeschlagen:",
+      err instanceof Error ? err.message : err
+    );
+    _dictEntries = [];
+  }
+
+  return _dictEntries;
 }
 
 const SYSTEM_PROMPT = `Du bist ein Übersetzer für Path of Exile 2 Build-Guides. Übersetze den folgenden englischen Text ins Deutsche. Übersetze natürlichsprachliche Beschreibungen, behalte aber Spielbegriffe (Skill-Namen, Item-Namen, Stats) möglichst im englischen Original – die werden später automatisch ersetzt. Antworte NUR mit der deutschen Übersetzung, ohne Erklärungen.`;
@@ -66,11 +110,10 @@ function applyCapitalization(translation: string, original: string): string {
 // ─── Dictionary-Post-Processing ─────────────────────────────────────────────
 
 /**
- * Wendet das Übersetzungs-Dictionary aus scripts/poe2-translations.json
- * auf einen bereits übersetzten Text an.
+ * Wendet das gecachte Übersetzungs-Dictionary auf einen bereits übersetzten Text an.
  *
  * - Nur exakte Wort-Matches (case-insensitive, mit Wortgrenzen `\b`)
- * - Längere Begriffe zuerst, um Teilstring-Probleme zu vermeiden
+ * - Längere Begriffe zuerst (beim ersten Aufruf einmalig geladen und sortiert)
  * - Bewahrt originale Groß-/Kleinschreibung des Matches
  *
  * @returns Den korrigierten Text und eine Liste der vorgenommenen Ersetzungen.
@@ -79,61 +122,31 @@ function applyDictionaryPostProcessing(
   translatedText: string
 ): { result: string; replacements: string[] } {
   const replacements: string[] = [];
+  const entries = getDictEntries();
 
-  try {
-    const filePath = resolve(process.cwd(), "scripts", "poe2-translations.json");
-    const raw = readFileSync(filePath, "utf-8");
-    const dict: TranslationDict = JSON.parse(raw);
-
-    // Alle Einträge sammeln (skills + stats, ohne Duplikate)
-    const entries: Array<[string, string]> = [];
-    if (dict.skills) {
-      for (const [en, de] of Object.entries(dict.skills)) {
-        entries.push([en, de]);
-      }
-    }
-    if (dict.stats) {
-      for (const [en, de] of Object.entries(dict.stats)) {
-        if (!dict.skills || !(en in dict.skills)) {
-          entries.push([en, de]);
-        }
-      }
-    }
-
-    if (entries.length === 0) {
-      return { result: translatedText, replacements: [] };
-    }
-
-    // Nach Länge absteigend sortieren: längere Phrasen zuerst ersetzen,
-    // damit z.B. "Lightning Arrow" vor "Arrow" gematcht wird.
-    entries.sort((a, b) => b[0].length - a[0].length);
-
-    let result = translatedText;
-
-    for (const [english, german] of entries) {
-      // Nur exakte Wort-Matches mit Wortgrenzen, case-insensitive
-      const regex = new RegExp("\\b" + escapeRegex(english) + "\\b", "gi");
-
-      let wasReplaced = false;
-
-      result = result.replace(regex, (match) => {
-        wasReplaced = true;
-        return applyCapitalization(german, match);
-      });
-
-      if (wasReplaced) {
-        replacements.push(`${english} → ${german}`);
-      }
-    }
-
-    return { result, replacements };
-  } catch (err) {
-    console.warn(
-      "[translate/route] Dictionary-Post-Processing fehlgeschlagen:",
-      err instanceof Error ? err.message : err
-    );
+  if (entries.length === 0) {
     return { result: translatedText, replacements: [] };
   }
+
+  let result = translatedText;
+
+  for (const [english, german] of entries) {
+    // Nur exakte Wort-Matches mit Wortgrenzen, case-insensitive
+    const regex = new RegExp("\\b" + escapeRegex(english) + "\\b", "gi");
+
+    let wasReplaced = false;
+
+    result = result.replace(regex, (match) => {
+      wasReplaced = true;
+      return applyCapitalization(german, match);
+    });
+
+    if (wasReplaced) {
+      replacements.push(`${english} → ${german}`);
+    }
+  }
+
+  return { result, replacements };
 }
 
 // ─── POST-Handler ───────────────────────────────────────────────────────────
@@ -166,6 +179,13 @@ export async function POST(request: Request) {
     if (!userText) {
       return Response.json({ error: "Kein Text übermittelt." }, { status: 400 });
     }
+    // K1: Text-Längen-Limit
+    if (userText.length > MAX_TEXT_CHARS) {
+      return Response.json(
+        { error: `Text zu lang (max. ${MAX_TEXT_CHARS.toLocaleString("de-DE")} Zeichen).` },
+        { status: 400 }
+      );
+    }
     model = "mistral-small-2506";
     messages = [
       { role: "system", content: SYSTEM_PROMPT },
@@ -175,6 +195,13 @@ export async function POST(request: Request) {
     const images = payload.images as Array<{ data: string; mediaType: string }> | undefined;
     if (!images || images.length === 0) {
       return Response.json({ error: "Keine Bilder übermittelt." }, { status: 400 });
+    }
+    // K2: Bild-Limit
+    if (images.length > MAX_IMAGES) {
+      return Response.json(
+        { error: `Maximal ${MAX_IMAGES} Bilder erlaubt.` },
+        { status: 400 }
+      );
     }
     model = "pixtral-12b";
     // Mistral Vision: Bilder als base64 Data-URLs im content-Array, ohne detail-Parameter
@@ -231,7 +258,9 @@ export async function POST(request: Request) {
     let buffer = "";
     fullText = "";
 
-    while (true) {
+    // H1: streamDone-Flag statt break in innerer Schleife
+    let streamDone = false;
+    while (!streamDone) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -244,7 +273,10 @@ export async function POST(request: Request) {
         if (!trimmed.startsWith("data: ")) continue;
 
         const data = trimmed.slice(6);
-        if (data === "[DONE]") break;
+        if (data === "[DONE]") {
+          streamDone = true;
+          break;
+        }
 
         try {
           const parsed = JSON.parse(data) as {
@@ -282,7 +314,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // ─── 3. Ergebnis als Stream zurückgeben (mit Metadaten in Headern) ───────
+  // ─── 3. Ergebnis zurückgeben ─────────────────────────────────────────────
 
   const encoder = new TextEncoder();
 
@@ -297,8 +329,6 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
-        "X-Replacements-Count": String(replacements.length),
-        "X-Replacements": JSON.stringify(replacements.slice(0, 20)),
       },
     }
   );

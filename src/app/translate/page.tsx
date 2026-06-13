@@ -186,13 +186,19 @@ export default function TranslatePage() {
   const [buildData, setBuildData] = useState<Record<string, unknown> | null>(null);
   const [extractedText, setExtractedText] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const buildFileInputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const { saveBuild } = useSavedBuildsStore();
 
   /** Parst eine .build Datei, extrahiert relevante Felder und bereinigt Markup */
   function parseBuildFile(file: File) {
+    // H3: Dateigröße prüfen vor readAsText
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Datei zu groß (max. 5 MB).");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -246,6 +252,17 @@ export default function TranslatePage() {
     reader.readAsText(file);
   }
 
+  // M4: Tab-Wechsel mit State-Clearing
+  const handleTabChange = (tab: "text" | "images" | "file") => {
+    if (activeTab === "images" && tab !== "images") setImages([]);
+    if (activeTab === "file" && tab !== "file") {
+      setBuildFile(null);
+      setBuildData(null);
+      setExtractedText("");
+    }
+    setActiveTab(tab);
+  };
+
   // Zustand aus localStorage laden
   useEffect(() => {
     void useSavedBuildsStore.persist.rehydrate();
@@ -270,16 +287,20 @@ export default function TranslatePage() {
 
       const addImage = (dataUrl: string, mediaType: string) => {
         const base64 = dataUrl.split(",")[1] ?? "";
-        setImages((prev) => [
-          ...prev,
-          {
-            id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            file,
-            data: base64,
-            mediaType,
-            preview: URL.createObjectURL(file),
-          },
-        ]);
+        // K2: Max 5 Bilder
+        setImages((prev) => {
+          if (prev.length >= 5) return prev;
+          return [
+            ...prev,
+            {
+              id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              file,
+              data: base64,
+              mediaType,
+              preview: URL.createObjectURL(file),
+            },
+          ];
+        });
       };
 
       compressImage(file)
@@ -424,7 +445,7 @@ export default function TranslatePage() {
         {/* Tabs */}
         <div className="flex gap-1 mb-4 p-1 bg-zinc-950 rounded-lg w-fit">
           <button
-            onClick={() => setActiveTab("text")}
+            onClick={() => handleTabChange("text")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === "text"
                 ? "bg-amber-900/40 text-amber-300"
@@ -435,7 +456,7 @@ export default function TranslatePage() {
             Text einfügen
           </button>
           <button
-            onClick={() => setActiveTab("images")}
+            onClick={() => handleTabChange("images")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === "images"
                 ? "bg-amber-900/40 text-amber-300"
@@ -446,7 +467,7 @@ export default function TranslatePage() {
             Screenshot hochladen
           </button>
           <button
-            onClick={() => setActiveTab("file")}
+            onClick={() => handleTabChange("file")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === "file"
                 ? "bg-amber-900/40 text-amber-300"
@@ -467,6 +488,7 @@ export default function TranslatePage() {
               placeholder="Build-Guide hier einfügen…&#10;&#10;Beliebiger Text von Maxroll, Mobalytics, Reddit, Discord usw."
               className="w-full h-56 resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600/50 transition-colors"
               spellCheck={false}
+              maxLength={30000}
             />
             <p className="mt-1.5 text-xs text-zinc-600">
               Tipp: Strg+A → Strg+C im Browser kopiert die gesamte Seite, dann hier einfügen.
@@ -482,7 +504,7 @@ export default function TranslatePage() {
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => imageInputRef.current?.click()}
               className={`relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed py-10 cursor-pointer transition-colors ${
                 isDragging
                   ? "border-amber-500 bg-amber-900/10"
@@ -495,7 +517,7 @@ export default function TranslatePage() {
               </p>
               <p className="text-xs text-zinc-600">JPG, PNG, WebP — mehrere Bilder möglich</p>
               <input
-                ref={fileInputRef}
+                ref={imageInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 multiple
@@ -542,7 +564,7 @@ export default function TranslatePage() {
                   setError("Bitte eine .build Datei (JSON) hochladen.");
                 }
               }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => buildFileInputRef.current?.click()}
               className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center cursor-pointer hover:border-zinc-500 transition-colors"
             >
               <FileUp className="h-8 w-8 text-zinc-500 mx-auto mb-2" />
@@ -552,7 +574,7 @@ export default function TranslatePage() {
                   : ".build Datei hierher ziehen oder klicken zum Auswählen"}
               </p>
               <input
-                ref={fileInputRef}
+                ref={buildFileInputRef}
                 type="file"
                 accept=".build,application/json"
                 className="hidden"
