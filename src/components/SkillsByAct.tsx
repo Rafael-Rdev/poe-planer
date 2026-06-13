@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useBuildStore } from "@/context/buildStore";
 import { getGemById } from "@/data/gems";
-import { translateTerm } from "@/lib/poe2Translator";
+import { translateTerm, translateSkillId } from "@/lib/poe2Translator";
 import type { BuildSkill } from "@/types/parser";
 import { Sparkles, Gem } from "lucide-react";
 
@@ -78,12 +78,12 @@ export default function SkillsByAct() {
                   const activeGem = getGemById(skill.activeGemId);
                   const activeNameDe = activeGem
                     ? activeGem.nameDe
-                    : translateTerm(skill.activeGemId);
+                    : translateSkillId(skill.activeGemId);
 
                   const supportGems = skill.supportGemIds
                     .map((id) => {
                       const gem = getGemById(id);
-                      return gem ? gem.nameDe : translateTerm(id);
+                      return gem ? gem.nameDe : translateSkillId(id);
                     })
                     .filter(Boolean);
 

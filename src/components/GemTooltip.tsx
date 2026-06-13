@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { getSkillDetail, type SkillDetail } from "@/lib/skillDetailService";
 import type { Gem } from "@/data/gems";
 import { X, Loader2 } from "lucide-react";
+import { translateDescription } from "@/lib/poe2Translator";
 
 interface GemTooltipProps {
   gem: Gem;
@@ -168,7 +169,7 @@ export default function GemTooltip({ gem, onClose }: GemTooltipProps) {
        {(showDetail ? detail.description : gem.description) && (
          <div className="px-3.5 pb-3 pt-1">
            <p className="text-[11px] leading-relaxed text-zinc-300/90">
-             {showDetail ? detail.description : gem.description}
+             {translateDescription(showDetail ? detail.description : gem.description)}
            </p>
          </div>
        )}

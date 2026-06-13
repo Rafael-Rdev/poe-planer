@@ -2,7 +2,7 @@
 
 import { useBuildStore } from "@/context/buildStore";
 import { getCharacterClassById } from "@/data/passives";
-import { translateTerm } from "@/lib/poe2Translator";
+import { translateTerm, translateDescription } from "@/lib/poe2Translator";
 import { User, Star, FileText, ChevronRight } from "lucide-react";
 
 /**
@@ -89,7 +89,7 @@ export default function BuildHeader() {
         <div className="px-5 py-3 bg-zinc-950/50">
           <div className="flex items-start gap-2">
             <FileText className="h-4 w-4 text-zinc-600 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-zinc-400 leading-relaxed">{description}</p>
+            <p className="text-sm text-zinc-400 leading-relaxed">{translateDescription(description)}</p>
           </div>
         </div>
       )}

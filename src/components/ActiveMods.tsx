@@ -1,6 +1,7 @@
 "use client";
 
 import { Gem } from "@/data/gems";
+import { translateDescription } from "@/lib/poe2Translator";
 import {
   Zap,
   Flame,
@@ -84,7 +85,7 @@ export default function ActiveMods({
                 <p className="text-xs font-semibold text-zinc-200">
                   {activeGem.nameDe}
                 </p>
-                <p className="text-[10px] text-zinc-500">{activeGem.description}</p>
+                <p className="text-[10px] text-zinc-500">{translateDescription(activeGem.description)}</p>
               </div>
             </div>
           </div>
@@ -136,7 +137,7 @@ export default function ActiveMods({
                         </span>
                       </div>
                       <p className="mt-0.5 text-[10px] leading-relaxed text-zinc-400">
-                        {gem.effect}
+                        {translateDescription(gem.effect)}
                       </p>
                     </div>
                   </div>

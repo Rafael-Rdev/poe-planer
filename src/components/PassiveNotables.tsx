@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useBuildStore } from "@/context/buildStore";
 import { getPassiveTalentById } from "@/data/passives";
-import { translateTerm } from "@/lib/poe2Translator";
+import { translateTerm, translateTagId } from "@/lib/poe2Translator";
 import { Zap } from "lucide-react";
 
 /**
@@ -24,8 +24,8 @@ export default function PassiveNotables() {
           // nameDe ist bereits in der Datenbank vorhanden
           return talent.nameDe || translateTerm(talent.nameEn);
         }
-        // Fallback: ID übersetzen
-        return translateTerm(id);
+        // Fallback: ID bereinigen und übersetzen (z.B. "projectiles18" → "Projektile")
+        return translateTagId(id);
       })
       .filter(Boolean);
   }, [selectedPassives]);

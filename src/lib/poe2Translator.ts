@@ -113,6 +113,120 @@ export function translateTerm(englishTerm: string): string {
 }
 
 /**
+ * Teilt CamelCase in einzelne Wörter auf.
+ * "ExplosiveGrenade" → "Explosive Grenade"
+ */
+function splitCamelCase(text: string): string {
+  return text
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .trim();
+}
+
+/**
+ * Übersetzt eine rohe Skill-ID (z.B. "Metadata/Items/Gem/SkillGemExplosiveGrenade")
+ * in einen lesbaren deutschen Namen.
+ *
+ * Pipeline:
+ * 1. Letzten Teil nach "/" extrahieren → "SkillGemExplosiveGrenade"
+ * 2. "SkillGem"-Präfix entfernen → "ExplosiveGrenade"
+ * 3. CamelCase in Wörter aufteilen → "Explosive Grenade"
+ * 4. Durch translateTerm übersetzen → "Explosivgranate"
+ *
+ * @param rawId Die rohe Skill-ID aus dem Build-Parser
+ * @returns Übersetzter Name oder Fallback
+ */
+export function translateSkillId(rawId: string): string {
+  if (!rawId) return "";
+
+  // 1. Letzten Teil nach dem letzten "/" extrahieren
+  const parts = rawId.split("/");
+  let lastPart = parts[parts.length - 1] || rawId;
+
+  // 2. "SkillGem"-Präfix entfernen (case-insensitive)
+  lastPart = lastPart.replace(/^SkillGem/i, "");
+
+  // 3. CamelCase in Wörter aufteilen
+  const englishName = splitCamelCase(lastPart);
+
+  // 4. Durch das bestehende translateTerm übersetzen
+  const translated = translateTerm(englishName);
+
+  // Wenn die Übersetzung identisch mit dem englischen Namen ist
+  // (kein Eintrag im Wörterbuch), gib den aufbereiteten englischen Namen zurück
+  if (translated === englishName) {
+    // Versuche case-insensitive Match
+    const lower = englishName.toLowerCase();
+    for (const [en, de] of getCombinedDict()) {
+      if (en.toLowerCase() === lower) return de;
+    }
+  }
+
+  return translated || englishName;
+}
+
+/**
+ * Übersetzt eine rohe Tag-ID (z.B. "projectiles18", "grenades8")
+ * in einen lesbaren deutschen Namen.
+ *
+ * Pipeline:
+ * 1. Durch translateTerm übersetzen (exakter Match)
+ * 2. Falls kein Treffer: Zahlen am Ende entfernen → "projectiles"
+ * 3. Unterstriche durch Leerzeichen ersetzen
+ * 4. Erneut translateTerm versuchen
+ * 5. Fallback: bereinigten Text zurückgeben
+ *
+ * @param rawId Die rohe Tag-ID
+ * @returns Übersetzter Name oder bereinigter Fallback
+ */
+export function translateTagId(rawId: string): string {
+  if (!rawId) return "";
+
+  // 1. Exakter Match über translateTerm
+  const exact = translateTerm(rawId);
+  if (exact !== rawId) return exact;
+
+  // 2. Zahlen am Ende entfernen
+  let cleaned = rawId.replace(/[0-9]+$/g, "");
+
+  // 3. Unterstriche durch Leerzeichen ersetzen
+  cleaned = cleaned.replace(/_+/g, " ").trim();
+
+  if (!cleaned) return rawId;
+
+  // 4. Erneut translateTerm versuchen mit bereinigtem Text
+  const retry = translateTerm(cleaned);
+  if (retry !== cleaned) return retry;
+
+  // 5. Fallback: CamelCase aufteilen falls nötig
+  const readable = splitCamelCase(cleaned);
+
+  // Finaler translateTerm-Versuch mit CamelCase-aufgeteiltem Text
+  const final = translateTerm(readable);
+  if (final !== readable) return final;
+
+  return readable || rawId;
+}
+
+/**
+ * Übersetzt einen Beschreibungstext, indem bekannte Begriffe
+ * im Text durch ihre deutschen Entsprechungen ersetzt werden.
+ *
+ * Da poe2Translator nur exakte Matches unterstützt, wird der
+ * gesamte Text als Ganzes übersetzt. Falls kein exakter Match
+ * existiert, wird der Originaltext zurückgegeben.
+ *
+ * @param text Der englische Beschreibungstext
+ * @returns Übersetzter Text oder Original-Fallback
+ */
+export function translateDescription(text: string): string {
+  if (!text) return "";
+
+  const translated = translateTerm(text);
+  return translated || text;
+}
+
+/**
  * Gibt die Größe des geladenen Wörterbuchs zurück.
  * Nützlich für Debugging.
  */

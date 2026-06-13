@@ -2,6 +2,7 @@
 
 import { Gem, GemColor, getAllGems, getGemById } from "@/data/gems";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { translateDescription } from "@/lib/poe2Translator";
 import { ChevronDown, X, Gem as GemIcon, Search } from "lucide-react";
 import GemTooltip from "./GemTooltip";
 
@@ -261,7 +262,7 @@ export default function GemSocket({
                         </span>
                       </div>
                       <p className="mt-0.5 text-[10px] text-zinc-500 leading-tight">
-                        {gem.description}
+                        {translateDescription(gem.description)}
                       </p>
                     </div>
                     <span className={`shrink-0 text-[10px] font-mono ${c.text}`}>●</span>
