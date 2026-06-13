@@ -8,47 +8,7 @@
  * Mistral ist OpenAI-kompatibel: SSE-Streaming über chat/completions.
  */
 
-const SYSTEM_PROMPT = `Du bist ein Path of Exile 2 Experte und Übersetzer.
-Analysiere den Build-Guide und strukturiere ihn auf Deutsch.
-Verwende AUSSCHLIESSLICH die offiziellen deutschen PS5-Namen für Skill Gems, Passive Nodes und Items.
-
-Terminologie (EN → DE) — verwende immer die deutsche Bezeichnung:
-Skills: Lightning Arrow=Blitzpfeil | Ice Shot=Eisschuss | Tornado Shot=Tornadoschuss | Rain of Arrows=Pfeilregen | Explosive Grenade=Explosivgranate | Firestorm=Feuersturm | Orb of Storms=Kugel der Stürme | Contagion=Ansteckung | Essence Drain=Essenzentzug | Flame Wall=Flammenwall
-Support Gems: Added Lightning=Hinzugefügter Blitzschaden | Added Cold=Hinzugefügter Kälteschaden | Added Fire=Hinzugefügter Feuerschaden | Greater Multiple Projectiles=Größere Mehrfachprojektile | Chain=Kette | Fork=Gabelung | Pierce=Durchdringen | Elemental Focus=Elementarfokus
-Stats: Attack Speed=Angriffsgeschwindigkeit | Cast Speed=Zaubergeschwindigkeit | Movement Speed=Bewegungsgeschwindigkeit | Critical Strike Chance=Kritische Trefferchance | Critical Strike Multiplier=Kritischer Treffermultiplikator | Life=Leben | Energy Shield=Energieschild | Evasion=Ausweichen | Armour=Rüstung | Mana=Mana | Fire Resistance=Feuerwiderstand | Cold Resistance=Kältewiderstand | Lightning Resistance=Blitzwiderstand | Chaos Resistance=Chaoswiderstand
-Items: Flask=Fläschchen | Bow=Bogen | Quiver=Köcher | Wand=Zauberstab | Staff=Stab | Helmet=Helm | Body Armour=Körperrüstung | Gloves=Handschuhe | Boots=Stiefel | Belt=Gürtel | Ring=Ring | Amulet=Amulett | Jewel=Juwel
-Currency: Chaos Orb=Chaoskugel | Exalted Orb=Erhabene Kugel | Divine Orb=Göttliche Kugel | Orb of Alchemy=Alchimiekugel
-Ascendancies: Deadeye=Scharfschütze | Pathfinder=Pfadfinderin | Invoker=Beschwörer | Chronomancer=Zeitmagier
-
-Gib die Ausgabe EXAKT in diesem Format aus (die ## und ### Überschriften sind Pflicht):
-
-## Build-Name & Klasse
-## Spielstil
-## Stärken & Schwächen
-
-## Level-Phasen
-
-### Level 1–20
-- Welche Skills benutzen?
-- Welche Support Gems sockeln?
-- Welche Passives priorisieren?
-- Wo leveln / was killen?
-
-### Level 20–40
-(gleiche Struktur)
-
-### Level 40–70
-(gleiche Struktur)
-
-### Endgame (70+)
-(gleiche Struktur)
-
-## Pflicht-Items
-## Empfohlene Items
-## Skill-Verlinkungen (Gem Links)
-
-Wenn eine Sektion im Guide fehlt, schreibe "Keine Angabe im Guide." darunter.
-Übersetze alles konsequent auf Deutsch. Keine englischen Fachbegriffe außer in Klammern als Zusatz.`;
+const SYSTEM_PROMPT = `Übersetze NUR was auf den Screenshots sichtbar ist. Erfinde keine fehlenden Details. Wenn etwas nicht erkennbar ist, schreibe: (nicht sichtbar im Screenshot)`;
 
 export async function POST(request: Request) {
   const apiKey = process.env.MISTRAL_API_KEY;
@@ -93,9 +53,7 @@ export async function POST(request: Request) {
     const content: Array<Record<string, unknown>> = [
       {
         type: "text",
-        text:
-          SYSTEM_PROMPT +
-          "\n\nAnalysiere die Screenshots und erstelle daraus einen strukturierten Build-Guide.",
+        text: "Analysiere die Screenshots und erstelle daraus einen strukturierten Build-Guide.",
       },
     ];
     for (const img of images) {
@@ -104,7 +62,10 @@ export async function POST(request: Request) {
         image_url: { url: `data:${img.mediaType};base64,${img.data}` },
       });
     }
-    messages = [{ role: "user", content }];
+    messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content },
+    ];
   } else {
     return Response.json({ error: "Unbekannter Request-Typ." }, { status: 400 });
   }
