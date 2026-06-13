@@ -2,17 +2,13 @@
 /**
  * fetch-translations.js
  * ============================================================================
- * Scraped das deutsche PoE 2 Wiki (pathofexile.fandom.com/de) nach
- * englisch→deutsch Übersetzungen für Skill-Gems, Stats und andere Begriffe.
+ * Extrahiert englisch→deutsch Übersetzungen für PoE 2 aus den lokalen
+ * Backup-Spieldateien (src/data/backup/).
  *
- * ABHÄNGIGKEITEN: Keine. Nur Node.js Built-ins: fs, path, fetch (Node 18+)
- *
- * QUELLEN (in Reihenfolge):
- *   1. MediaWiki API von pathofexile.fandom.com/de
- *   2. Fallback: poe2wiki.net API
- *   3. Fallback: Umfangreiches hardcoded Dictionary (150+ Einträge)
- *
- * RATE-LIMITING: 500ms zwischen Requests
+ * QUELLEN:
+ *   1. Lokale Backup-JSONs (de_skillgems.json + en_skillgems.json +
+ *      de_baseitemtypes.json + en_baseitemtypes.json etc.)
+ *   2. Hardcoded Fallback-Dictionary
  *
  * AUSGABE: scripts/poe2-translations.json
  *
@@ -27,354 +23,246 @@ const path = require("path");
 // ─── KONFIGURATION ──────────────────────────────────────────────────────────
 
 const OUTPUT_FILE = path.join(__dirname, "poe2-translations.json");
-const DELAY_MS = 500;
-const TIMEOUT_MS = 10_000;
-
-// MediaWiki API-Endpunkte
-const WIKI_API_DE = "https://pathofexile.fandom.com/de/api.php";
-const WIKI_API_EN = "https://pathofexile.fandom.com/api.php";
-const POE2WIKI_API = "https://www.poe2wiki.net/api.php";
-
-// Deutsche Wiki-Kategorien für Skill-Gems (verschiedene mögliche Namen)
-const SKILL_CATEGORIES = [
-  "Kategorie:Fertigkeitengemmen",
-  "Kategorie:Unterstützungsgemmen",
-  "Kategorie:Fertigkeiten",
-  "Kategorie:PoE2-Fertigkeiten",
-  "Kategorie:PoE2-Fertigkeitengemmen",
-  "Kategorie:Aktive_Fertigkeiten",
-  "Kategorie:Zauber",
-  "Kategorie:Angriffe",
-  "Kategorie:Aktive_Fertigkeitengemmen",
-];
-
-// Deutsche Wiki-Kategorien für Stats/Attribute
-const STAT_CATEGORIES = [
-  "Kategorie:Passive_Fertigkeiten",
-  "Kategorie:Attribute",
-  "Kategorie:Spielmechaniken",
-];
-
-// Kategorie für Passive Skills (Keystones, Notables)
-const PASSIVE_CATEGORIES = [
-  "Kategorie:Schlussstein-Passivfertigkeiten",
-  "Kategorie:Bemerkenswerte_Passivfertigkeiten",
-  "Kategorie:Passive_Fertigkeiten",
-];
+const BACKUP_DIR = path.join(__dirname, "..", "src", "data", "backup");
 
 // ─── HILFSFUNKTIONEN ────────────────────────────────────────────────────────
 
 /**
- * Verzögert die Ausführung um `ms` Millisekunden.
+ * Lädt eine JSON-Datei. Unterstützt sowohl single-JSON als auch
+ * newline-delimited JSON (ndjson) für Dateien mit mehreren JSON-Objekten.
+ * Gibt ein Array zurück oder null bei Fehler.
  */
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Führt einen fetch()-Request mit Timeout durch.
- * Gibt das geparste JSON zurück oder null bei Fehler/Timeout.
- * Bei HTTP 429 (Rate-Limit) wird ein exponentieller Backoff angewendet.
- */
-async function fetchJson(url, retryCount = 0) {
-  const MAX_RETRIES = 3;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
+function loadJsonFile(filePath) {
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const raw = fs.readFileSync(filePath, "utf-8").trim();
+    if (!raw) return null;
 
-    if (response.status === 429 && retryCount < MAX_RETRIES) {
-      // Exponentieller Backoff: 2s, 4s, 8s
-      const backoffMs = 2000 * Math.pow(2, retryCount);
-      console.warn(`  ⚠️  HTTP 429 (Rate-Limit) – warte ${backoffMs / 1000}s vor Retry ${retryCount + 1}/${MAX_RETRIES}`);
-      await sleep(backoffMs);
-      return fetchJson(url, retryCount + 1);
+    // Versuche als einzelnes JSON-Objekt
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (_) {
+      // Fallback: Versuche als NDJSON (ein JSON-Objekt pro Zeile)
+      const lines = raw.split("\n").filter((l) => l.trim());
+      const results = [];
+      for (const line of lines) {
+        try {
+          results.push(JSON.parse(line));
+        } catch (e) {
+          // Überspringe ungültige Zeilen
+        }
+      }
+      return results.length > 0 ? results : null;
     }
-
-    if (response.status === 429) {
-      console.warn(`  ⚠️  HTTP 429 für ${url.split("?")[0]} (max. Retries erreicht)`);
-      return null;
-    }
-
-    if (!response.ok) {
-      console.warn(`  ⚠️  HTTP ${response.status} für ${url.split("?")[0]}`);
-      return null;
-    }
-    return await response.json();
   } catch (err) {
-    if (err.name === "AbortError") {
-      console.warn(`  ⏱  Timeout (${TIMEOUT_MS}ms) für ${url.split("?")[0]}`);
-    } else {
-      console.warn(`  ⚠️  Fehler bei ${url.split("?")[0]}: ${err.message}`);
-    }
+    console.warn(`  ⚠️  Konnte ${path.basename(filePath)} nicht laden: ${err.message}`);
     return null;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 /**
- * Baut eine MediaWiki-API-URL mit Query-Parametern.
+ * Baut ein Lookup-Dictionary: Id → Name aus einem Array von Objekten.
  */
-function buildWikiUrl(baseUrl, params) {
-  const searchParams = new URLSearchParams({ format: "json", ...params });
-  return `${baseUrl}?${searchParams.toString()}`;
-}
-
-// ─── WIKI-SCRAPING: KATEGORIE-MITGLIEDER ────────────────────────────────────
-
-/**
- * Ruft alle Seiten in einer Kategorie ab (via MediaWiki categorymembers API).
- * Nutzt `cmcontinue` für Paginierung.
- */
-async function fetchCategoryMembers(apiBase, categoryTitle) {
-  console.log(`\n  📂 Durchsuche Kategorie: ${categoryTitle}`);
-
-  const members = [];
-  let cmcontinue = null;
-
-  do {
-    const params = {
-      action: "query",
-      list: "categorymembers",
-      cmtitle: categoryTitle,
-      cmlimit: "500",
-      cmtype: "page",
-    };
-    if (cmcontinue) params.cmcontinue = cmcontinue;
-
-    const url = buildWikiUrl(apiBase, params);
-    const data = await fetchJson(url);
-
-    if (!data || !data.query || !data.query.categorymembers) {
-      console.warn(`     → Keine Ergebnisse (oder Fehler).`);
-      break;
+function buildNameLookup(entries, idField, nameField) {
+  const lookup = {};
+  if (!entries) return lookup;
+  for (const entry of entries) {
+    // Unterstütze sowohl flache Id als auch verschachtelte (z.B. BaseItemTypesKey.Id)
+    let id;
+    if (typeof idField === "function") {
+      id = idField(entry);
+    } else if (idField.includes(".")) {
+      const parts = idField.split(".");
+      id = entry[parts[0]]?.[parts[1]];
+    } else {
+      id = entry[idField];
     }
-
-    const pages = data.query.categorymembers;
-    members.push(...pages);
-
-    cmcontinue = data.continue?.cmcontinue || null;
-
-    if (cmcontinue) {
-      await sleep(DELAY_MS);
-    }
-  } while (cmcontinue);
-
-  console.log(`     → ${members.length} Seiten gefunden.`);
-  return members;
-}
-
-// ─── WIKI-SCRAPING: LANGLINKS (ENGLISCHER SEITENTITEL) ──────────────────────
-
-/**
- * Ruft den englischen Seitentitel für eine deutsche Wiki-Seite ab.
- * Nutzt die langlinks-Property der MediaWiki-API.
- *
- * Beispiel: "Feuerball" (de) → "Fireball" (en)
- */
-async function fetchEnglishTitle(apiBase, germanTitle) {
-  const url = buildWikiUrl(apiBase, {
-    action: "query",
-    titles: germanTitle,
-    prop: "langlinks",
-    lllang: "en",
-  });
-
-  const data = await fetchJson(url);
-  if (!data || !data.query || !data.query.pages) return null;
-
-  const pages = data.query.pages;
-  const page = Object.values(pages)[0];
-  if (!page || !page.langlinks || page.langlinks.length === 0) return null;
-
-  return page.langlinks[0]["*"] || null;
-}
-
-// ─── WIKI-SCRAPING: SEITENINHALT (FALLBACK-METHODE) ─────────────────────────
-
-/**
- * Falls langlinks nicht verfügbar sind: Versuche den englischen Namen
- * aus dem Wikitext-Infobox zu extrahieren.
- *
- * Viele deutsche Wiki-Seiten haben eine Vorlage wie:
- *   {{Infobox Fertigkeit
- *   | name_en = Fireball
- *   }}
- */
-async function fetchEnglishFromInfobox(apiBase, germanTitle) {
-  const url = buildWikiUrl(apiBase, {
-    action: "query",
-    titles: germanTitle,
-    prop: "revisions",
-    rvprop: "content",
-    rvslots: "main",
-  });
-
-  const data = await fetchJson(url);
-  if (!data || !data.query || !data.query.pages) return null;
-
-  const pages = data.query.pages;
-  const page = Object.values(pages)[0];
-  if (!page || !page.revisions || page.revisions.length === 0) return null;
-
-  const wikitext = page.revisions[0].slots?.main?.["*"] || "";
-  if (!wikitext) return null;
-
-  // Verschiedene Muster für englische Namen in Infoboxen
-  const patterns = [
-    /\|\s*name_en\s*=\s*([^\n|]+)/i,
-    /\|\s*Englischer Name\s*=\s*([^\n|]+)/i,
-    /\|\s*english_name\s*=\s*([^\n|]+)/i,
-    /\|\s*Name\s*=\s*([^\n|]+)/i,  // manchmal ist Name der englische
-  ];
-
-  for (const pattern of patterns) {
-    const match = wikitext.match(pattern);
-    if (match) {
-      return match[1].trim().replace(/\[\[([^\]|]+)\]\]/g, "$1")
-        .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2");
+    const name = entry[nameField];
+    if (id && name && typeof name === "string" && name.trim()) {
+      lookup[id] = name.trim();
     }
   }
-
-  return null;
+  return lookup;
 }
 
-// ─── WIKI-SCRAPING: HAUPTLOGIK ──────────────────────────────────────────────
+// ─── EXTRAKTION AUS BACKUP-DATEIEN ─────────────────────────────────────────
 
 /**
- * Sammelt Übersetzungen aus einer Wiki-Quelle.
- *
- * Strategie:
- *   1. Alle Seiten in Skill-Kategorien finden
- *   2. Für jede Seite den englischen Titel via langlinks ermitteln
- *   3. Bei Fehlschlag: Infobox-Methode als Fallback
+ * Extrahiert Skill-Gem-Übersetzungen aus den Backup-Dateien.
+ * Nutzt de_skillgems.json + en_skillgems.json + *_baseitemtypes.json
+ * für die Id→Name-Auflösung.
  */
-async function scrapeWikiTranslations(apiBase, categories, label) {
-  console.log(`\n🌐 Scrape ${label} …`);
+function extractSkillGemTranslations() {
+  console.log("\n📦 Extrahiere Skill-Gem-Übersetzungen aus Backups …");
 
   const translations = {};
 
-  for (const category of categories) {
-    const members = await fetchCategoryMembers(apiBase, category);
+  // Lade BaseItemTypes (Name-Lookups)
+  const deItems = loadJsonFile(path.join(BACKUP_DIR, "de_baseitemtypes.json"));
+  const enItems = loadJsonFile(path.join(BACKUP_DIR, "en_baseitemtypes.json"));
 
-    for (const member of members) {
-      const germanTitle = member.title;
+  if (!deItems || !enItems) {
+    console.warn("  ⚠️  BaseItemTypes-Dateien fehlen – überspringe Skill-Gem-Extraktion.");
+    return translations;
+  }
 
-      // Überspringe Kategorie-Seiten, Vorlagen, etc.
-      if (
-        germanTitle.startsWith("Kategorie:") ||
-        germanTitle.startsWith("Vorlage:") ||
-        germanTitle.startsWith("Datei:") ||
-        germanTitle.startsWith("Hilfe:") ||
-        germanTitle.includes("/")
-      ) {
-        continue;
-      }
+  const deNameByItemId = buildNameLookup(deItems, "Id", "Name");
+  const enNameByItemId = buildNameLookup(enItems, "Id", "Name");
 
-      await sleep(DELAY_MS);
+  // Lade SkillGem-Listen
+  const deGems = loadJsonFile(path.join(BACKUP_DIR, "de_skillgems.json"));
+  const enGems = loadJsonFile(path.join(BACKUP_DIR, "en_skillgems.json"));
 
-      // Methode 1: langlinks
-      let englishTitle = await fetchEnglishTitle(apiBase, germanTitle);
-      if (!englishTitle) {
-        // Methode 2: Infobox
-        englishTitle = await fetchEnglishFromInfobox(apiBase, germanTitle);
-      }
+  // Verwende die deutsche Gem-Liste als Basis
+  const gems = deGems || enGems || [];
+  console.log(`  → ${gems.length} Skill-Gems in Backup-Dateien`);
 
-      if (englishTitle && englishTitle !== germanTitle) {
-        // Bereinige Wiki-Markup
-        englishTitle = englishTitle
-          .replace(/\[\[([^\]|]+)\]\]/g, "$1")
-          .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
-          .trim();
-        const cleanDe = germanTitle
-          .replace(/\[\[([^\]|]+)\]\]/g, "$1")
-          .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
-          .trim();
+  for (const gem of gems) {
+    const itemId = gem?.BaseItemTypesKey?.Id;
+    if (!itemId) continue;
 
-        if (englishTitle !== cleanDe && englishTitle.length > 1 && cleanDe.length > 1) {
-          translations[englishTitle] = cleanDe;
-        }
-      }
+    const deName = deNameByItemId[itemId];
+    const enName = enNameByItemId[itemId];
 
-      // Fortschritt anzeigen
-      if (Object.keys(translations).length % 20 === 0 && Object.keys(translations).length > 0) {
-        console.log(`     → ${Object.keys(translations).length} Übersetzungen gesammelt …`);
-      }
+    if (deName && enName && deName !== enName) {
+      translations[enName] = deName;
     }
   }
 
-  console.log(`  ✅ ${Object.keys(translations).length} Übersetzungen aus ${label} gesammelt.`);
+  console.log(`  ✅ ${Object.keys(translations).length} Skill-Gem-Übersetzungen extrahiert.`);
   return translations;
 }
 
-// ─── POE2WIKI.NET FALLBACK ──────────────────────────────────────────────────
-
 /**
- * Versucht, Übersetzungen von poe2wiki.net zu extrahieren.
- * poe2wiki.net ist primär englischsprachig, könnte aber
- * langlinks zu deutschen Seiten haben.
+ * Extrahiert ActiveSkill-Übersetzungen (DisplayedName) aus den Backup-Dateien.
  */
-async function scrapePoe2Wiki() {
-  console.log("\n🌐 Versuche poe2wiki.net …");
+function extractActiveSkillTranslations() {
+  console.log("\n📦 Extrahiere ActiveSkill-Übersetzungen aus Backups …");
 
   const translations = {};
 
-  // Kategorien auf poe2wiki.net (englisch)
-  const categories = [
-    "Category:Skill_gems",
-    "Category:Active_skill_gems",
-    "Category:Support_gems",
-    "Category:Spell_skill_gems",
-    "Category:Attack_skill_gems",
-  ];
+  const deSkills = loadJsonFile(path.join(BACKUP_DIR, "de_activeskills.json"));
+  const enSkills = loadJsonFile(path.join(BACKUP_DIR, "en_activeskills.json"));
 
-  for (const category of categories) {
-    const members = await fetchCategoryMembers(POE2WIKI_API, category);
+  if (!deSkills || !enSkills) {
+    console.warn("  ⚠️  ActiveSkills-Dateien fehlen – überspringe.");
+    return translations;
+  }
 
-    for (const member of members) {
-      const englishTitle = member.title;
+  const deById = buildNameLookup(deSkills, "Id", "DisplayedName");
+  const enById = buildNameLookup(enSkills, "Id", "DisplayedName");
 
-      if (
-        englishTitle.startsWith("Category:") ||
-        englishTitle.startsWith("Template:") ||
-        englishTitle.startsWith("File:") ||
-        englishTitle.includes("/")
-      ) {
-        continue;
-      }
-
-      await sleep(DELAY_MS);
-
-      // Versuche, den deutschen Titel via langlinks zu bekommen
-      const germanTitle = await fetchEnglishTitle(POE2WIKI_API, englishTitle);
-      // Achtung: Hier rufen wir langlinks mit llang=de auf, aber unsere
-      // fetchEnglishTitle-Funktion ist hart auf "en" kodiert.
-      // → Wir bauen den Request manuell.
-
-      const url = buildWikiUrl(POE2WIKI_API, {
-        action: "query",
-        titles: englishTitle,
-        prop: "langlinks",
-        lllang: "de",
-      });
-
-      const data = await fetchJson(url);
-      if (!data || !data.query || !data.query.pages) continue;
-
-      const pages = data.query.pages;
-      const page = Object.values(pages)[0];
-      if (!page || !page.langlinks || page.langlinks.length === 0) continue;
-
-      const deTitle = page.langlinks[0]["*"];
-      if (deTitle && deTitle !== englishTitle) {
-        translations[englishTitle] = deTitle;
+  let matched = 0;
+  for (const [id, enName] of Object.entries(enById)) {
+    const deName = deById[id];
+    if (deName && deName !== enName) {
+      // Vermeide Duplikate mit Skill-Gems (nur hinzufügen wenn nicht schon vorhanden)
+      if (!translations[enName]) {
+        translations[enName] = deName;
+        matched++;
       }
     }
   }
 
-  console.log(`  ✅ ${Object.keys(translations).length} Übersetzungen von poe2wiki.net.`);
+  console.log(`  ✅ ${matched} ActiveSkill-Übersetzungen extrahiert.`);
+  return translations;
+}
+
+/**
+ * Extrahiert PassiveSkill-Übersetzungen aus den Backup-Dateien.
+ * Filtert auf Keystones und Notables für bessere Relevanz.
+ */
+function extractPassiveSkillTranslations() {
+  console.log("\n📦 Extrahiere PassiveSkill-Übersetzungen aus Backups …");
+
+  const translations = {};
+
+  const dePassives = loadJsonFile(path.join(BACKUP_DIR, "de_passiveskills.json"));
+  const enPassives = loadJsonFile(path.join(BACKUP_DIR, "en_passiveskills.json"));
+
+  if (!dePassives || !enPassives) {
+    console.warn("  ⚠️  PassiveSkills-Dateien fehlen – überspringe.");
+    return translations;
+  }
+
+  const deById = buildNameLookup(dePassives, "Id", "Name");
+  const enById = buildNameLookup(enPassives, "Id", "Name");
+
+  let matched = 0;
+  for (const [id, enName] of Object.entries(enById)) {
+    const deName = deById[id];
+    if (deName && deName !== enName && deName.length > 1) {
+      translations[enName] = deName;
+      matched++;
+    }
+  }
+
+  console.log(`  ✅ ${matched} PassiveSkill-Übersetzungen extrahiert.`);
+  return translations;
+}
+
+/**
+ * Extrahiert Stat-Übersetzungen (z.B. "Increased Attack Speed" → "Erhöhte Angriffsgeschwindigkeit").
+ */
+function extractStatTranslations() {
+  console.log("\n📦 Extrahiere Stat-Übersetzungen aus Backups …");
+
+  const translations = {};
+
+  const deStats = loadJsonFile(path.join(BACKUP_DIR, "de_stats.json"));
+  const enStats = loadJsonFile(path.join(BACKUP_DIR, "en_stats.json"));
+
+  if (!deStats || !enStats) {
+    console.warn("  ⚠️  Stats-Dateien fehlen – überspringe.");
+    return translations;
+  }
+
+  const deById = buildNameLookup(deStats, "Id", "Text");
+  const enById = buildNameLookup(enStats, "Id", "Text");
+
+  let matched = 0;
+  for (const [id, enText] of Object.entries(enById)) {
+    const deText = deById[id];
+    if (deText && deText !== enText && Math.abs(deText.length - enText.length) < 100) {
+      // Nur sinnvolle Übersetzungen (nicht komplett verschiedene Strings)
+      translations[enText] = deText;
+      matched++;
+    }
+  }
+
+  console.log(`  ✅ ${matched} Stat-Übersetzungen extrahiert.`);
+  return translations;
+}
+
+/**
+ * Extrahiert Character-/Klassen-Übersetzungen.
+ */
+function extractCharacterTranslations() {
+  console.log("\n📦 Extrahiere Charakter-Übersetzungen aus Backups …");
+
+  const translations = {};
+
+  const deChars = loadJsonFile(path.join(BACKUP_DIR, "de_characters.json"));
+  const enChars = loadJsonFile(path.join(BACKUP_DIR, "en_characters.json"));
+
+  if (!deChars || !enChars) {
+    console.warn("  ⚠️  Characters-Dateien fehlen – überspringe.");
+    return translations;
+  }
+
+  const deById = buildNameLookup(deChars, "Id", "Name");
+  const enById = buildNameLookup(enChars, "Id", "Name");
+
+  let matched = 0;
+  for (const [id, enName] of Object.entries(enById)) {
+    const deName = deById[id];
+    if (deName && deName !== enName) {
+      translations[enName] = deName;
+      matched++;
+    }
+  }
+
+  console.log(`  ✅ ${matched} Charakter-Übersetzungen extrahiert.`);
   return translations;
 }
 
@@ -382,14 +270,11 @@ async function scrapePoe2Wiki() {
 
 /**
  * Umfangreiches hardcoded Dictionary mit offiziellen PoE 2 Übersetzungen.
- * Wird als Basis verwendet und mit Wiki-Ergebnissen ergänzt.
- * Wiki-Ergebnisse haben Vorrang (überschreiben hardcoded Einträge).
+ * Wird als Basis verwendet und mit Backup-Ergebnissen ergänzt.
+ * Backup-Ergebnisse haben Vorrang (überschreiben hardcoded Einträge).
  */
 function getHardcodedDictionary() {
   return {
-    // ============================================================
-    // AKTIVE SKILL GEMS (PoE 2)
-    // ============================================================
     skills: {
       // --- Stärke (Rot) ---
       "Fireball": "Feuerball",
@@ -463,12 +348,8 @@ function getHardcodedDictionary() {
       "Pain Offering": "Schmerzopfer",
       "Unearth": "Ausgraben",
     },
-
-    // ============================================================
-    // SUPPORT GEMS
-    // ============================================================
     stats: {
-      // Support Gems – diese werden oft auch als "Skill" betrachtet
+      // Support Gems
       "Added Fire Damage": "Hinzugefügter Feuerschaden",
       "Added Cold Damage": "Hinzugefügter Kälteschaden",
       "Added Lightning Damage": "Hinzugefügter Blitzschaden",
@@ -520,9 +401,7 @@ function getHardcodedDictionary() {
       "Curse on Hit": "Fluch bei Treffer",
       "Blasphemy": "Blasphemie",
 
-      // ============================================================
-      // ASCENDANCY CLASSES
-      // ============================================================
+      // Ascendancy Classes
       "Deadeye": "Scharfschütze",
       "Pathfinder": "Pfadfinderin",
       "Invoker": "Beschwörer",
@@ -535,9 +414,7 @@ function getHardcodedDictionary() {
       "Mercenary": "Söldner",
       "Huntress": "Jägerin",
 
-      // ============================================================
-      // PASSIVE TREE KEYWORDS
-      // ============================================================
+      // Passive Tree Keywords
       "Projectile Damage": "Projektil-Schaden",
       "Attack Speed": "Angriffsgeschwindigkeit",
       "Cast Speed": "Zaubergeschwindigkeit",
@@ -571,9 +448,7 @@ function getHardcodedDictionary() {
       "Brand": "Malzeichen",
       "Ballista": "Balliste",
 
-      // ============================================================
-      // ITEM TYPES
-      // ============================================================
+      // Item Types
       "Bow": "Bogen",
       "Quiver": "Köcher",
       "Wand": "Zauberstab",
@@ -600,9 +475,7 @@ function getHardcodedDictionary() {
       "Catalyst": "Katalysator",
       "Distilled Emotion": "Destillierte Emotion",
 
-      // ============================================================
-      // CURRENCY
-      // ============================================================
+      // Currency
       "Orb of Alchemy": "Alchimiekugel",
       "Chaos Orb": "Chaoskugel",
       "Exalted Orb": "Erhabene Kugel",
@@ -624,9 +497,7 @@ function getHardcodedDictionary() {
       "Orb of Augmentation": "Kugel der Erweiterung",
       "Orb of Alteration": "Kugel der Veränderung",
 
-      // ============================================================
-      // KEYSTONE PASSIVES
-      // ============================================================
+      // Keystone Passives
       "Crimson Dance": "Purpurtanz",
       "Iron Reflexes": "Eiserne Reflexe",
       "Unwavering Stance": "Unerschütterliche Haltung",
@@ -654,22 +525,22 @@ function getHardcodedDictionary() {
 // ─── ZUSAMMENFÜHRUNG DER QUELLEN ────────────────────────────────────────────
 
 /**
- * Führt Wiki-Ergebnisse mit dem hardcoded Dictionary zusammen.
- * Wiki-Ergebnisse haben VORRANG (überschreiben hardcoded Einträge).
+ * Führt Backup-Extraktionen mit dem hardcoded Dictionary zusammen.
+ * Backup-Daten haben VORRANG (überschreiben hardcoded Einträge).
  */
-function mergeDictionaries(hardcoded, wikiSkills, wikiStats) {
+function mergeDictionaries(hardcoded, backupSkills, backupStats) {
   const result = {
     skills: { ...hardcoded.skills },
     stats: { ...hardcoded.stats },
   };
 
-  // Wiki-Skills überschreiben hardcoded Skills
-  for (const [en, de] of Object.entries(wikiSkills)) {
+  // Backup-Skills überschreiben hardcoded Skills
+  for (const [en, de] of Object.entries(backupSkills)) {
     result.skills[en] = de;
   }
 
-  // Wiki-Stats überschreiben hardcoded Stats
-  for (const [en, de] of Object.entries(wikiStats)) {
+  // Backup-Stats überschreiben hardcoded Stats
+  for (const [en, de] of Object.entries(backupStats)) {
     result.stats[en] = de;
   }
 
@@ -682,18 +553,18 @@ function mergeDictionaries(hardcoded, wikiSkills, wikiStats) {
  * Speichert das Übersetzungs-JSON in die Ausgabedatei.
  */
 function saveTranslations(translations) {
-  const totalCount =
-    Object.keys(translations.skills).length +
-    Object.keys(translations.stats).length;
+  const skillKeys = Object.keys(translations.skills);
+  const statKeys = Object.keys(translations.stats);
+  const totalCount = skillKeys.length + statKeys.length;
 
   const output = {
     skills: translations.skills,
     stats: translations.stats,
     metadata: {
-      source: "pathofexile.fandom.com/de + poe2wiki.net + hardcoded fallback",
+      source: "src/data/backup/*.json (official game data) + hardcoded fallback",
       fetchedAt: new Date().toISOString(),
-      skillCount: Object.keys(translations.skills).length,
-      statCount: Object.keys(translations.stats).length,
+      skillCount: skillKeys.length,
+      statCount: statKeys.length,
       totalCount,
     },
   };
@@ -703,81 +574,75 @@ function saveTranslations(translations) {
   const sizeKb = (Buffer.byteLength(JSON.stringify(output), "utf-8") / 1024).toFixed(1);
   console.log(`\n💾 Gespeichert: ${OUTPUT_FILE}`);
   console.log(`   ${totalCount} Übersetzungen (${output.metadata.skillCount} Skills + ${output.metadata.statCount} Stats), ${sizeKb} KB`);
+
+  // Zeige einige Beispiele
+  console.log(`\n📋 Beispiele (erste 10 Skills):`);
+  const sampleSkills = skillKeys.slice(0, 10);
+  for (const en of sampleSkills) {
+    console.log(`   "${en}" → "${translations.skills[en]}"`);
+  }
+  if (statKeys.length > 0) {
+    console.log(`\n📋 Beispiele (erste 5 Stats):`);
+    const sampleStats = statKeys.slice(0, 5);
+    for (const en of sampleStats) {
+      console.log(`   "${en}" → "${translations.stats[en]}"`);
+    }
+  }
 }
 
 // ─── HAUPTFUNKTION ──────────────────────────────────────────────────────────
 
 async function main() {
   console.log("=".repeat(70));
-  console.log("  🎮  PoE 2 — Wiki-Übersetzungs-Scraper");
+  console.log("  🎮  PoE 2 — Übersetzungs-Extraktor (aus Backup-Spieldateien)");
   console.log("=".repeat(70));
   console.log(`\n📅 Start: ${new Date().toISOString()}`);
-  console.log(`⏱  Rate-Limit: ${DELAY_MS}ms zwischen Requests`);
-  console.log(`⏱  Timeout: ${TIMEOUT_MS}ms pro Request`);
+  console.log(`📂 Backup-Verzeichnis: ${BACKUP_DIR}`);
 
   // Hardcoded Dictionary als Basis
   const hardcoded = getHardcodedDictionary();
   console.log(`\n📚 Hardcoded Dictionary: ${Object.keys(hardcoded.skills).length} Skills + ${Object.keys(hardcoded.stats).length} Stats`);
 
-  // ── Schritt 1: Deutsches Fandom-Wiki scrapen ─────────────────────
-  let wikiSkillTranslations = {};
-  let wikiStatTranslations = {};
+  // ── Schritt 1: Skill-Gems aus Backups extrahieren ────────────────────
+  const skillGemTranslations = extractSkillGemTranslations();
 
-  console.log("\n── Schritt 1: pathofexile.fandom.com/de ──");
+  // ── Schritt 2: ActiveSkills aus Backups extrahieren ──────────────────
+  const activeSkillTranslations = extractActiveSkillTranslations();
 
-  try {
-    wikiSkillTranslations = await scrapeWikiTranslations(
-      WIKI_API_DE,
-      SKILL_CATEGORIES,
-      "Fandom DE (Skills)"
-    );
-  } catch (err) {
-    console.warn(`  ⚠️  Skill-Scraping fehlgeschlagen: ${err.message}`);
-  }
+  // ── Schritt 3: PassiveSkills aus Backups extrahieren ─────────────────
+  const passiveSkillTranslations = extractPassiveSkillTranslations();
 
-  try {
-    wikiStatTranslations = await scrapeWikiTranslations(
-      WIKI_API_DE,
-      [...STAT_CATEGORIES, ...PASSIVE_CATEGORIES],
-      "Fandom DE (Stats/Passives)"
-    );
-  } catch (err) {
-    console.warn(`  ⚠️  Stat-Scraping fehlgeschlagen: ${err.message}`);
-  }
+  // ── Schritt 4: Stats aus Backups extrahieren ─────────────────────────
+  const statTranslations = extractStatTranslations();
 
-  // ── Schritt 2: poe2wiki.net Fallback ─────────────────────────────
-  console.log("\n── Schritt 2: poe2wiki.net (Fallback) ──");
+  // ── Schritt 5: Characters aus Backups extrahieren ────────────────────
+  const characterTranslations = extractCharacterTranslations();
 
-  let poe2wikiTranslations = {};
-  try {
-    poe2wikiTranslations = await scrapePoe2Wiki();
-    // Merge poe2wiki Ergebnisse in wikiSkillTranslations
-    for (const [en, de] of Object.entries(poe2wikiTranslations)) {
-      if (!wikiSkillTranslations[en]) {
-        wikiSkillTranslations[en] = de;
-      }
-    }
-  } catch (err) {
-    console.warn(`  ⚠️  poe2wiki.net-Scraping fehlgeschlagen: ${err.message}`);
-  }
+  // ── Zusammenführen ──────────────────────────────────────────────────
+  console.log("\n── Ergebnisse zusammenführen ──");
 
-  // ── Schritt 3: Zusammenführen & Speichern ────────────────────────
-  console.log("\n── Schritt 3: Ergebnisse zusammenführen ──");
+  // Merge alle Skill-Quellen
+  const allSkills = {
+    ...skillGemTranslations,
+    ...activeSkillTranslations,
+    ...passiveSkillTranslations,
+    ...characterTranslations,
+  };
 
-  const merged = mergeDictionaries(
-    hardcoded,
-    wikiSkillTranslations,
-    wikiStatTranslations
-  );
+  const allStats = {
+    ...statTranslations,
+  };
 
-  const wikiTotal =
-    Object.keys(wikiSkillTranslations).length +
-    Object.keys(wikiStatTranslations).length;
+  // Merge mit hardcoded (Backup-Daten haben Vorrang)
+  const merged = mergeDictionaries(hardcoded, allSkills, allStats);
+
+  const backupSkillTotal = Object.keys(allSkills).length;
+  const backupStatTotal = Object.keys(allStats).length;
 
   console.log(`\n📊 Zusammenfassung:`);
-  console.log(`   Hardcoded:   ${Object.keys(hardcoded.skills).length} Skills + ${Object.keys(hardcoded.stats).length} Stats`);
-  console.log(`   Wiki-Scrape: ${wikiTotal} neue Übersetzungen`);
-  console.log(`   Gesamt:      ${Object.keys(merged.skills).length} Skills + ${Object.keys(merged.stats).length} Stats`);
+  console.log(`   Hardcoded:        ${Object.keys(hardcoded.skills).length} Skills + ${Object.keys(hardcoded.stats).length} Stats`);
+  console.log(`   Backup-Extraktion: ${backupSkillTotal} Skills + ${backupStatTotal} Stats`);
+  console.log(`   Gesamt (merged):   ${Object.keys(merged.skills).length} Skills + ${Object.keys(merged.stats).length} Stats`);
 
   saveTranslations(merged);
 
