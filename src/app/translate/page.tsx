@@ -12,6 +12,7 @@ import {
   FileText,
   AlertCircle,
   ChevronDown,
+  FileUp,
 } from "lucide-react";
 import { useSavedBuildsStore } from "@/context/savedBuildsStore";
 
@@ -23,6 +24,23 @@ interface UploadedImage {
   data: string;       // base64 ohne data:-Prefix
   mediaType: string;  // "image/jpeg" | "image/png" | "image/webp"
   preview: string;    // object URL für Vorschau
+}
+
+// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
+
+/** Entfernt PoE2-Markup-Tags wie <rgb(...)>{...}, <b>{...}, <s>{...} aus Text */
+function stripMarkup(text: string): string {
+  return text
+    .replace(/<rgb\([^)]*\)>\{?/gi, "")
+    .replace(/<\/?b>/gi, "")
+    .replace(/<\/?b>\{?/gi, "")
+    .replace(/<\/?s>/gi, "")
+    .replace(/<\/?s>\{?/gi, "")
+    .replace(/\{/g, "")
+    .replace(/\}/g, "")
+    .replace(/<[^>]+>/g, "")  // Fallback: alle verbleibenden HTML-ähnlichen Tags
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // ─── Markdown-Renderer ────────────────────────────────────────────────────────
@@ -154,7 +172,7 @@ function fallbackToOriginalDataUrl(
 // ─── Haupt-Komponente ─────────────────────────────────────────────────────────
 
 export default function TranslatePage() {
-  const [activeTab, setActiveTab] = useState<"text" | "images">("text");
+  const [activeTab, setActiveTab] = useState<"text" | "images" | "file">("text");
   const [textInput, setTextInput] = useState("");
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -164,11 +182,69 @@ export default function TranslatePage() {
   const [buildName, setBuildName] = useState("");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [buildFile, setBuildFile] = useState<File | null>(null);
+  const [buildData, setBuildData] = useState<Record<string, unknown> | null>(null);
+  const [extractedText, setExtractedText] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const { saveBuild } = useSavedBuildsStore();
+
+  /** Parst eine .build Datei, extrahiert relevante Felder und bereinigt Markup */
+  function parseBuildFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        setBuildData(json);
+
+        const parts: string[] = [];
+
+        if (json.name) parts.push(`Name: ${stripMarkup(String(json.name))}`);
+        if (json.author) parts.push(`Autor: ${stripMarkup(String(json.author))}`);
+        if (json.description) parts.push(`Beschreibung: ${stripMarkup(String(json.description))}`);
+        if (json.ascendancy) parts.push(`Ascendancy: ${stripMarkup(String(json.ascendancy))}`);
+
+        // Passives extrahieren
+        if (Array.isArray(json.passives)) {
+          const passiveTexts = json.passives
+            .map((p: Record<string, unknown>) => {
+              if (p.additional_text) return stripMarkup(String(p.additional_text));
+              if (p.name) return stripMarkup(String(p.name));
+              return "";
+            })
+            .filter(Boolean);
+          if (passiveTexts.length > 0) {
+            parts.push(`Passive Skills:\n${passiveTexts.join("\n")}`);
+          }
+        }
+
+        // Skills extrahieren
+        if (Array.isArray(json.skills)) {
+          const skillTexts = json.skills
+            .map((s: Record<string, unknown>) => {
+              const skillParts: string[] = [];
+              if (s.name) skillParts.push(stripMarkup(String(s.name)));
+              if (s.description) skillParts.push(stripMarkup(String(s.description)));
+              if (s.additional_text) skillParts.push(stripMarkup(String(s.additional_text)));
+              return skillParts.join(": ");
+            })
+            .filter(Boolean);
+          if (skillTexts.length > 0) {
+            parts.push(`Skills:\n${skillTexts.join("\n")}`);
+          }
+        }
+
+        setExtractedText(parts.join("\n\n"));
+      } catch {
+        setError("Ungültiges JSON-Format. Bitte eine gültige .build Datei hochladen.");
+        setBuildData(null);
+        setExtractedText("");
+      }
+    };
+    reader.readAsText(file);
+  }
 
   // Zustand aus localStorage laden
   useEffect(() => {
@@ -258,16 +334,22 @@ export default function TranslatePage() {
       setError("Bitte mindestens ein Screenshot hochladen.");
       return;
     }
+    if (activeTab === "file" && !extractedText) {
+      setError("Bitte zuerst eine .build Datei hochladen.");
+      return;
+    }
 
     setIsLoading(true);
 
     const body =
       activeTab === "text"
         ? { type: "text", text: textInput }
-        : {
-            type: "images",
-            images: images.map((img) => ({ data: img.data, mediaType: img.mediaType })),
-          };
+        : activeTab === "images"
+          ? {
+              type: "images",
+              images: images.map((img) => ({ data: img.data, mediaType: img.mediaType })),
+            }
+          : { type: "text", text: extractedText };
 
     try {
       const res = await fetch("/api/translate", {
@@ -363,6 +445,17 @@ export default function TranslatePage() {
             <ImagePlus className="h-4 w-4" />
             Screenshot hochladen
           </button>
+          <button
+            onClick={() => setActiveTab("file")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "file"
+                ? "bg-amber-900/40 text-amber-300"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <FileUp className="h-4 w-4" />
+            Build-Datei hochladen
+          </button>
         </div>
 
         {/* Tab: Text */}
@@ -426,6 +519,85 @@ export default function TranslatePage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Build-Datei */}
+        {activeTab === "file" && (
+          <div>
+            {/* Dropzone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const file = e.dataTransfer.files?.[0];
+                if (file && (file.name.endsWith(".build") || file.type === "application/json")) {
+                  setBuildFile(file);
+                  parseBuildFile(file);
+                  setError(null);
+                } else {
+                  setError("Bitte eine .build Datei (JSON) hochladen.");
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center cursor-pointer hover:border-zinc-500 transition-colors"
+            >
+              <FileUp className="h-8 w-8 text-zinc-500 mx-auto mb-2" />
+              <p className="text-sm text-zinc-400">
+                {buildFile
+                  ? `Geladen: ${buildFile.name}`
+                  : ".build Datei hierher ziehen oder klicken zum Auswählen"}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".build,application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setBuildFile(file);
+                    parseBuildFile(file);
+                    setError(null);
+                  }
+                }}
+              />
+            </div>
+
+            {/* Extrahierte Vorschau */}
+            {buildData && (
+              <div className="mt-4 p-4 rounded-lg bg-zinc-950 border border-zinc-800">
+                <h3 className="text-sm font-medium text-zinc-300 mb-2">
+                  Extrahierte Felder ({extractedText.length.toLocaleString("de-DE")} Zeichen zur Übersetzung)
+                </h3>
+                <div className="space-y-1 text-sm text-zinc-400">
+                  {!!buildData.name && (
+                    <p><span className="text-zinc-500">Name:</span> {stripMarkup(String(buildData.name))}</p>
+                  )}
+                  {!!buildData.author && (
+                    <p><span className="text-zinc-500">Autor:</span> {stripMarkup(String(buildData.author))}</p>
+                  )}
+                  {!!buildData.ascendancy && (
+                    <p><span className="text-zinc-500">Ascendancy:</span> {stripMarkup(String(buildData.ascendancy))}</p>
+                  )}
+                  {Array.isArray(buildData.passives) && (
+                    <p><span className="text-zinc-500">Passive Skills:</span> {buildData.passives.length}</p>
+                  )}
+                  {Array.isArray(buildData.skills) && (
+                    <p><span className="text-zinc-500">Skills:</span> {buildData.skills.length}</p>
+                  )}
+                </div>
+                <details className="mt-3">
+                  <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">
+                    Extrahierter Text anzeigen
+                  </summary>
+                  <pre className="mt-2 text-xs text-zinc-400 whitespace-pre-wrap max-h-48 overflow-y-auto p-2 bg-zinc-900 rounded">
+                    {extractedText}
+                  </pre>
+                </details>
               </div>
             )}
           </div>
