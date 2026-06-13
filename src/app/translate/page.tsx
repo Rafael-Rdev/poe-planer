@@ -15,6 +15,10 @@ import {
   FileUp,
 } from "lucide-react";
 import { useSavedBuildsStore } from "@/context/savedBuildsStore";
+import { useBuildStore } from "@/context/buildStore";
+import BuildHeader from "@/components/BuildHeader";
+import SkillsByAct from "@/components/SkillsByAct";
+import PassiveNotables from "@/components/PassiveNotables";
 
 // ─── Typen ───────────────────────────────────────────────────────────────────
 
@@ -183,18 +187,17 @@ export default function TranslatePage() {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [buildFile, setBuildFile] = useState<File | null>(null);
-  const [buildData, setBuildData] = useState<Record<string, unknown> | null>(null);
-  const [extractedText, setExtractedText] = useState("");
+  const [buildLoaded, setBuildLoaded] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const buildFileInputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const { saveBuild } = useSavedBuildsStore();
+  const store = useBuildStore();
 
-  /** Parst eine .build Datei, extrahiert relevante Felder und bereinigt Markup */
+  /** Parst eine .build Datei und befüllt den buildStore mit den extrahierten Daten */
   function parseBuildFile(file: File) {
-    // H3: Dateigröße prüfen vor readAsText
     if (file.size > 5 * 1024 * 1024) {
       setError("Datei zu groß (max. 5 MB).");
       return;
@@ -202,51 +205,70 @@ export default function TranslatePage() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const json = JSON.parse(e.target?.result as string);
-        setBuildData(json);
+        const json = JSON.parse(e.target?.result as string) as Record<string, unknown>;
 
-        const parts: string[] = [];
+        // Build-Metadaten in den Store schreiben
+        if (typeof json.name === "string") store.setBuildName(stripMarkup(json.name));
+        if (typeof json.author === "string") store.setAuthor(stripMarkup(json.author));
+        if (typeof json.description === "string") store.setDescription(stripMarkup(json.description));
+        if (typeof json.ascendancy === "string") store.setAscendancy(stripMarkup(json.ascendancy));
 
-        if (json.name) parts.push(`Name: ${stripMarkup(String(json.name))}`);
-        if (json.author) parts.push(`Autor: ${stripMarkup(String(json.author))}`);
-        if (json.description) parts.push(`Beschreibung: ${stripMarkup(String(json.description))}`);
-        if (json.ascendancy) parts.push(`Ascendancy: ${stripMarkup(String(json.ascendancy))}`);
+        // Charakterklasse
+        const cls = json.class ?? json.characterClass;
+        if (typeof cls === "string") store.setClass(cls);
 
-        // Passives extrahieren
+        // Level
+        if (typeof json.level === "number" && json.level >= 1 && json.level <= 100) {
+          store.setLevel(json.level);
+        }
+
+        // Passives: Array aus Strings (IDs) oder Objekten mit id/name
         if (Array.isArray(json.passives)) {
-          const passiveTexts = json.passives
-            .map((p: Record<string, unknown>) => {
-              if (p.additional_text) return stripMarkup(String(p.additional_text));
-              if (p.name) return stripMarkup(String(p.name));
-              return "";
-            })
-            .filter(Boolean);
-          if (passiveTexts.length > 0) {
-            parts.push(`Passive Skills:\n${passiveTexts.join("\n")}`);
+          const passiveIds: string[] = [];
+          for (const p of json.passives) {
+            if (typeof p === "string") {
+              passiveIds.push(p);
+            } else if (p && typeof p === "object") {
+              const obj = p as Record<string, unknown>;
+              if (typeof obj.id === "string") passiveIds.push(obj.id);
+              else if (typeof obj.name === "string") passiveIds.push(stripMarkup(obj.name));
+            }
           }
+          store.setPassives(passiveIds);
         }
 
-        // Skills extrahieren
+        // Skills: Array aus Objekten mit activeGemId/id, supportGemIds/supports, act
         if (Array.isArray(json.skills)) {
-          const skillTexts = json.skills
-            .map((s: Record<string, unknown>) => {
-              const skillParts: string[] = [];
-              if (s.name) skillParts.push(stripMarkup(String(s.name)));
-              if (s.description) skillParts.push(stripMarkup(String(s.description)));
-              if (s.additional_text) skillParts.push(stripMarkup(String(s.additional_text)));
-              return skillParts.join(": ");
-            })
-            .filter(Boolean);
-          if (skillTexts.length > 0) {
-            parts.push(`Skills:\n${skillTexts.join("\n")}`);
+          const skills: import("@/types/parser").BuildSkill[] = [];
+          for (const s of json.skills) {
+            if (!s || typeof s !== "object") continue;
+            const obj = s as Record<string, unknown>;
+            const activeGemId =
+              (typeof obj.activeGemId === "string" ? obj.activeGemId : null) ??
+              (typeof obj.id === "string" ? obj.id : null) ??
+              (typeof obj.name === "string" ? stripMarkup(obj.name) : null);
+            if (!activeGemId) continue;
+
+            const rawSupports = obj.supportGemIds ?? obj.supports;
+            const supportGemIds: string[] = Array.isArray(rawSupports)
+              ? rawSupports.filter((x: unknown): x is string => typeof x === "string")
+              : [];
+
+            const act =
+              typeof obj.act === "number" && obj.act >= 1 && obj.act <= 4
+                ? obj.act
+                : 1;
+
+            skills.push({ activeGemId, supportGemIds, act });
           }
+          store.setSkillsByAct(skills);
         }
 
-        setExtractedText(parts.join("\n\n"));
+        setBuildLoaded(true);
+        setError(null);
       } catch {
         setError("Ungültiges JSON-Format. Bitte eine gültige .build Datei hochladen.");
-        setBuildData(null);
-        setExtractedText("");
+        setBuildLoaded(false);
       }
     };
     reader.readAsText(file);
@@ -257,8 +279,16 @@ export default function TranslatePage() {
     if (activeTab === "images" && tab !== "images") setImages([]);
     if (activeTab === "file" && tab !== "file") {
       setBuildFile(null);
-      setBuildData(null);
-      setExtractedText("");
+      setBuildLoaded(false);
+      // Build-Store-Metadaten zurücksetzen
+      store.setBuildName("");
+      store.setAuthor("");
+      store.setAscendancy("");
+      store.setDescription("");
+      store.setClass(null);
+      store.setLevel(1);
+      store.setPassives([]);
+      store.setSkillsByAct([]);
     }
     setActiveTab(tab);
   };
@@ -347,6 +377,9 @@ export default function TranslatePage() {
     setOutput("");
     setSaved(false);
 
+    // Build-Datei-Tab: Komponenten übersetzen lokal via poe2Translator – kein API-Call
+    if (activeTab === "file") return;
+
     if (activeTab === "text" && !textInput.trim()) {
       setError("Bitte zuerst einen Build-Guide einfügen.");
       return;
@@ -355,22 +388,16 @@ export default function TranslatePage() {
       setError("Bitte mindestens ein Screenshot hochladen.");
       return;
     }
-    if (activeTab === "file" && !extractedText) {
-      setError("Bitte zuerst eine .build Datei hochladen.");
-      return;
-    }
 
     setIsLoading(true);
 
     const body =
       activeTab === "text"
         ? { type: "text", text: textInput }
-        : activeTab === "images"
-          ? {
-              type: "images",
-              images: images.map((img) => ({ data: img.data, mediaType: img.mediaType })),
-            }
-          : { type: "text", text: extractedText };
+        : {
+            type: "images",
+            images: images.map((img) => ({ data: img.data, mediaType: img.mediaType })),
+          };
 
     try {
       const res = await fetch("/api/translate", {
@@ -589,37 +616,12 @@ export default function TranslatePage() {
               />
             </div>
 
-            {/* Extrahierte Vorschau */}
-            {buildData && (
-              <div className="mt-4 p-4 rounded-lg bg-zinc-950 border border-zinc-800">
-                <h3 className="text-sm font-medium text-zinc-300 mb-2">
-                  Extrahierte Felder ({extractedText.length.toLocaleString("de-DE")} Zeichen zur Übersetzung)
-                </h3>
-                <div className="space-y-1 text-sm text-zinc-400">
-                  {!!buildData.name && (
-                    <p><span className="text-zinc-500">Name:</span> {stripMarkup(String(buildData.name))}</p>
-                  )}
-                  {!!buildData.author && (
-                    <p><span className="text-zinc-500">Autor:</span> {stripMarkup(String(buildData.author))}</p>
-                  )}
-                  {!!buildData.ascendancy && (
-                    <p><span className="text-zinc-500">Ascendancy:</span> {stripMarkup(String(buildData.ascendancy))}</p>
-                  )}
-                  {Array.isArray(buildData.passives) && (
-                    <p><span className="text-zinc-500">Passive Skills:</span> {buildData.passives.length}</p>
-                  )}
-                  {Array.isArray(buildData.skills) && (
-                    <p><span className="text-zinc-500">Skills:</span> {buildData.skills.length}</p>
-                  )}
-                </div>
-                <details className="mt-3">
-                  <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">
-                    Extrahierter Text anzeigen
-                  </summary>
-                  <pre className="mt-2 text-xs text-zinc-400 whitespace-pre-wrap max-h-48 overflow-y-auto p-2 bg-zinc-900 rounded">
-                    {extractedText}
-                  </pre>
-                </details>
+            {/* Build-Daten via Store-Komponenten (lokale Übersetzung via poe2Translator) */}
+            {buildLoaded && (
+              <div className="mt-4 space-y-4">
+                <BuildHeader />
+                <SkillsByAct />
+                <PassiveNotables />
               </div>
             )}
           </div>
@@ -633,24 +635,26 @@ export default function TranslatePage() {
           </div>
         )}
 
-        {/* Übersetzen-Button */}
-        <button
-          onClick={handleTranslate}
-          disabled={isLoading}
-          className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 disabled:cursor-not-allowed px-6 py-3 text-sm font-semibold text-white transition-colors"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Übersetze…
-            </>
-          ) : (
-            <>
-              <Languages className="h-4 w-4" />
-              Übersetzen
-            </>
-          )}
-        </button>
+        {/* Übersetzen-Button (nur für Text & Bilder – Build-Datei übersetzt lokal) */}
+        {activeTab !== "file" && (
+          <button
+            onClick={handleTranslate}
+            disabled={isLoading}
+            className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 disabled:cursor-not-allowed px-6 py-3 text-sm font-semibold text-white transition-colors"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Übersetze…
+              </>
+            ) : (
+              <>
+                <Languages className="h-4 w-4" />
+                Übersetzen
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Output-Bereich */}
