@@ -249,9 +249,17 @@ export default function TranslatePage() {
               (typeof obj.name === "string" ? stripMarkup(obj.name) : null);
             if (!activeGemId) continue;
 
-            const rawSupports = obj.supportGemIds ?? obj.supports;
+            const rawSupports = obj.supportGemIds ?? obj.supports ?? obj.support_skills;
             const supportGemIds: string[] = Array.isArray(rawSupports)
-              ? rawSupports.filter((x: unknown): x is string => typeof x === "string")
+              ? rawSupports
+                  .map((x: unknown): string | null => {
+                    if (typeof x === "string") return x;
+                    if (x && typeof x === "object" && typeof (x as Record<string, unknown>).id === "string") {
+                      return (x as Record<string, unknown>).id as string;
+                    }
+                    return null;
+                  })
+                  .filter((x: string | null): x is string => x !== null)
               : [];
 
             const act =

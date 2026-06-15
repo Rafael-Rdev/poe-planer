@@ -143,8 +143,8 @@ export function translateSkillId(rawId: string): string {
   const parts = rawId.split("/");
   let lastPart = parts[parts.length - 1] || rawId;
 
-  // 2. "SkillGem"-Präfix entfernen (case-insensitive)
-  lastPart = lastPart.replace(/^SkillGem/i, "");
+  // 2. "SkillGem"- oder "SupportGem"-Präfix entfernen (case-insensitive)
+  lastPart = lastPart.replace(/^(SkillGem|SupportGem)/i, "");
 
   // 3. CamelCase in Wörter aufteilen
   const englishName = splitCamelCase(lastPart);

@@ -331,7 +331,7 @@ function collectGemIds(data: Record<string, unknown>, out: string[]): void {
       if (!entry || typeof entry !== "object") continue;
       const e = entry as Record<string, unknown>;
       const directId = e.id ?? e.gemId ?? e.gem_id ?? e.name ?? e.skillId;
-      if (typeof directId === "string" && directId.length > 0) { out.push(directId); continue; }
+      if (typeof directId === "string" && directId.length > 0) { out.push(directId); }
       if (Array.isArray(e.gems)) {
         for (const gem of e.gems) {
           if (!gem || typeof gem !== "object") continue;
@@ -344,6 +344,14 @@ function collectGemIds(data: Record<string, unknown>, out: string[]): void {
           if (!s || typeof s !== "object") continue;
           const sid = (s as Record<string, unknown>).id ?? (s as Record<string, unknown>).name;
           if (typeof sid === "string" && sid.length > 0) out.push(sid);
+        }
+      }
+      // support_skills: Array von { id: "Metadata/..." } Objekten
+      if (Array.isArray(e.support_skills)) {
+        for (const ss of e.support_skills) {
+          if (!ss || typeof ss !== "object") continue;
+          const ssId = (ss as Record<string, unknown>).id;
+          if (typeof ssId === "string" && ssId.length > 0) out.push(ssId);
         }
       }
     }
