@@ -1670,11 +1670,11 @@ export const availableGems: Record<string, Gem> = {
   "explosivegrenade": {
     id: "explosivegrenade",
     nameEn: "Explosive Grenade",
-    nameDe: "Sprengstoffgranate",
+    nameDe: "Explosivgranate",
     type: "active",
     color: "red",
-    effect: "Wirkt Sprengstoffgranate",
-    description: "Wirkt Sprengstoffgranate",
+    effect: "Wirkt Explosivgranate",
+    description: "Wirkt Explosivgranate",
   },
   "explosiveshot": {
     id: "explosiveshot",
@@ -5176,8 +5176,33 @@ export function getGemsByType(type: GemType): Gem[] {
 }
 
 /**
- * Findet eine Gemme anhand ihrer ID (O(1) direkt via Key).
+ * Normalisierter Index (Kleinbuchstaben, ohne Sonderzeichen) für tolerante
+ * Lookups. Löst verschiedene ID-Formen desselben Gems auf, z. B.
+ * "Explosive Grenade", "ExplosiveGrenade" und "explosivegrenade".
+ */
+let _normGemIndex: Record<string, Gem> | null = null;
+
+function getNormGemIndex(): Record<string, Gem> {
+  if (_normGemIndex) return _normGemIndex;
+  const idx: Record<string, Gem> = {};
+  for (const gem of Object.values(availableGems)) {
+    const byId = gem.id.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (byId && !(byId in idx)) idx[byId] = gem;
+    const byName = gem.nameEn.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (byName && !(byName in idx)) idx[byName] = gem;
+  }
+  _normGemIndex = idx;
+  return idx;
+}
+
+/**
+ * Findet eine Gemme anhand ihrer ID. Zuerst O(1)-Direktzugriff, dann
+ * toleranter Fallback über den normalisierten Index.
  */
 export function getGemById(id: string): Gem | undefined {
-  return availableGems[id];
+  const direct = availableGems[id];
+  if (direct) return direct;
+  const norm = id.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!norm) return undefined;
+  return getNormGemIndex()[norm];
 }

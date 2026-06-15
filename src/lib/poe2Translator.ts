@@ -124,6 +124,33 @@ function splitCamelCase(text: string): string {
 }
 
 /**
+ * Entfernt führende Qualifier-Wörter wie "Unique", "Skill", "Gem", "Support".
+ * "Unique Skill Gem Herald Of Ash" → "Herald Of Ash"
+ */
+function stripQualifierWords(name: string): string {
+  let prev: string;
+  let cur = name.trim();
+  do {
+    prev = cur;
+    cur = cur.replace(/^(unique|support|skill|gem)\b\s*/i, "").trim();
+  } while (cur !== prev && cur.length > 0);
+  return cur || name;
+}
+
+/**
+ * Entfernt nachgestellte Tier-Marker von Support-Gems:
+ * "Scattershot Two" → "Scattershot", "Splinter III" → "Splinter".
+ * (In PoE 2 ist das Tier dieselbe Gemme in höherer Stufe – gleicher Name.)
+ */
+function stripTierSuffix(name: string): string {
+  return name
+    .replace(/\s+(two|three|four|five|six|seven|eight)$/i, "")
+    .replace(/\s+(ii|iii|iv|v|vi|vii|viii)$/i, "")
+    .replace(/\s+\d+$/, "")
+    .trim();
+}
+
+/**
  * Übersetzt eine rohe Skill-ID (z.B. "Metadata/Items/Gem/SkillGemExplosiveGrenade")
  * in einen lesbaren deutschen Namen.
  *
@@ -141,28 +168,29 @@ export function translateSkillId(rawId: string): string {
 
   // 1. Letzten Teil nach dem letzten "/" extrahieren
   const parts = rawId.split("/");
-  let lastPart = parts[parts.length - 1] || rawId;
+  const lastPart = parts[parts.length - 1] || rawId;
 
-  // 2. "SkillGem"- oder "SupportGem"-Präfix entfernen (case-insensitive)
-  lastPart = lastPart.replace(/^(SkillGem|SupportGem)/i, "");
+  // 2. CamelCase in Wörter aufteilen
+  //    ("UniqueSkillGemHeraldOfAsh" → "Unique Skill Gem Herald Of Ash")
+  let name = splitCamelCase(lastPart);
 
-  // 3. CamelCase in Wörter aufteilen
-  const englishName = splitCamelCase(lastPart);
+  // 3. Führende Qualifier ("Unique", "Skill", "Gem", "Support") entfernen
+  name = stripQualifierWords(name);
 
-  // 4. Durch das bestehende translateTerm übersetzen
-  const translated = translateTerm(englishName);
+  // 4. Direkter (case-insensitiver) Match über translateTerm
+  let translated = translateTerm(name);
+  if (translated !== name) return translated;
 
-  // Wenn die Übersetzung identisch mit dem englischen Namen ist
-  // (kein Eintrag im Wörterbuch), gib den aufbereiteten englischen Namen zurück
-  if (translated === englishName) {
-    // Versuche case-insensitive Match
-    const lower = englishName.toLowerCase();
-    for (const [en, de] of getCombinedDict()) {
-      if (en.toLowerCase() === lower) return de;
-    }
+  // 5. Getiertes Support-Gem: Tier-Suffix abschneiden und Basis übersetzen
+  //    ("Scattershot Two" → "Scattershot" → "Streuschuss")
+  const base = stripTierSuffix(name);
+  if (base !== name && base.length > 0) {
+    translated = translateTerm(base);
+    if (translated !== base) return translated;
   }
 
-  return translated || englishName;
+  // 6. Fallback: bereinigter englischer Name
+  return base || name || lastPart;
 }
 
 /**

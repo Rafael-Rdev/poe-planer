@@ -354,12 +354,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unbekannter Request-Typ." }, { status: 400 });
   }
 
-  // ─── 1. Mistral-Antwort sammeln (nicht direkt streamen) ──────────────────
+  // ─── Mistral aufrufen ─────────────────────────────────────────────────────
 
-  let fullText: string;
-
+  let response: Response;
   try {
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -372,63 +371,10 @@ export async function POST(request: Request) {
         messages,
       }),
     });
-
-    if (!response.ok || !response.body) {
-      const errText = await response.text().catch(() => response.statusText);
-      // H-3: Details nur serverseitig loggen, dem Client nur eine generische Meldung
-      console.error(
-        `[translate/route] Mistral API Fehler ${response.status}:`,
-        errText
-      );
-      return Response.json(
-        { error: "Übersetzungsdienst momentan nicht verfügbar." },
-        { status: 502 }
-      );
-    }
-
-    // SSE-Stream lesen und vollständigen Text sammeln
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    fullText = "";
-
-    // H1: streamDone-Flag statt break in innerer Schleife
-    let streamDone = false;
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data: ")) continue;
-
-        const data = trimmed.slice(6);
-        if (data === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: { delta?: { content?: string | null } }[];
-          };
-          const text = parsed.choices?.[0]?.delta?.content;
-          if (text) {
-            fullText += text;
-          }
-        } catch {
-          // Ungültiges JSON in SSE-Zeile — ignorieren
-        }
-      }
-    }
   } catch (err) {
     // H-3: Details nur serverseitig loggen
     console.error(
-      "[translate/route] Fehler bei der Übersetzung:",
+      "[translate/route] Fehler beim Aufruf der Mistral-API:",
       err instanceof Error ? err.message : err
     );
     return Response.json(
@@ -437,37 +383,103 @@ export async function POST(request: Request) {
     );
   }
 
-  // ─── 2. Dictionary-Post-Processing ───────────────────────────────────────
-
-  const { result, replacements } = applyDictionaryPostProcessing(fullText);
-
-  // Logging auf der Server-Konsole
-  console.log(
-    `[translate/route] Dictionary-Post-Processing: ${replacements.length} Ersetzungen vorgenommen`
-  );
-  if (replacements.length > 0) {
-    console.log(
-      `[translate/route] Erste ${Math.min(10, replacements.length)} Ersetzungen:`,
-      replacements.slice(0, 10)
+  if (!response.ok || !response.body) {
+    const errText = await response.text().catch(() => response.statusText);
+    // H-3: Details nur serverseitig loggen, dem Client nur eine generische Meldung
+    console.error(
+      `[translate/route] Mistral API Fehler ${response.status}:`,
+      errText
+    );
+    return Response.json(
+      { error: "Übersetzungsdienst momentan nicht verfügbar." },
+      { status: 502 }
     );
   }
 
-  // ─── 3. Ergebnis zurückgeben ─────────────────────────────────────────────
+  // ─── Echtes Streaming (SSE-Frames) ────────────────────────────────────────
+  //
+  // Protokoll (newline-getrennte SSE-Frames):
+  //   data: {"delta":"…"}   → Roh-Chunk von Mistral, sofort anzeigen
+  //   data: {"final":"…"}   → vollständiger, nach-prozessierter Text (Schritt 2)
+  //   data: {"error":"…"}   → Fehler während des Streams
+  //   data: [DONE]          → Ende
+  //
+  // Die Deltas werden live durchgereicht; das Dictionary-Post-Processing läuft
+  // erst NACH dem kompletten Stream und wird als ein "final"-Frame nachgesendet.
 
   const encoder = new TextEncoder();
+  const upstream = response.body;
 
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(result));
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = upstream.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      const send = (obj: Record<string, unknown>) =>
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
+      try {
+        let streamDone = false;
+        while (!streamDone) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") {
+              streamDone = true;
+              break;
+            }
+
+            try {
+              const parsed = JSON.parse(data) as {
+                choices?: { delta?: { content?: string | null } }[];
+              };
+              const text = parsed.choices?.[0]?.delta?.content;
+              if (text) {
+                fullText += text;
+                // Roh-Chunk sofort durchreichen
+                send({ delta: text });
+              }
+            } catch {
+              // Ungültiges JSON in SSE-Zeile — ignorieren
+            }
+          }
+        }
+
+        // Schritt 2: Dictionary-Post-Processing auf dem Volltext
+        const { result, replacements } = applyDictionaryPostProcessing(fullText);
+        console.log(
+          `[translate/route] Dictionary-Post-Processing: ${replacements.length} Ersetzungen vorgenommen`
+        );
+        send({ final: result });
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } catch (err) {
+        console.error(
+          "[translate/route] Fehler beim Streamen:",
+          err instanceof Error ? err.message : err
+        );
+        send({ error: "Übersetzungsdienst momentan nicht verfügbar." });
+      } finally {
         controller.close();
-      },
-    }),
-    {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-      },
-    }
-  );
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }

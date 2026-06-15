@@ -42,18 +42,37 @@ function getGemDisplayColor(gem: Gem | undefined): string {
 export default function SkillsByAct() {
   const skillsByAct = useBuildStore((s) => s.skillsByAct);
 
-  // Gruppiere nach Akt (1–4)
+  // Skills deduplizieren und nach Akt gruppieren.
+  // Jeder Skill erscheint nur EINMAL – in seinem zuerst auftretenden Akt –
+  // mit über alle Akte zusammengeführten (und nach Name deduplizierten)
+  // Support-Gems.
   const grouped = useMemo(() => {
-    const groups: Record<number, BuildSkill[]> = {
-      1: [],
-      2: [],
-      3: [],
-      4: [],
-    };
+    const groups: Record<number, BuildSkill[]> = { 1: [], 2: [], 3: [], 4: [] };
+    const seen = new Map<string, BuildSkill>();
+    const supportNames = new Map<BuildSkill, Set<string>>();
 
     for (const skill of skillsByAct) {
       const act = skill.act >= 1 && skill.act <= 4 ? skill.act : 1;
-      groups[act].push(skill);
+      const gem = getGemById(skill.activeGemId);
+      const key = (gem ? gem.id : translateSkillId(skill.activeGemId)).toLowerCase();
+
+      let entry = seen.get(key);
+      if (!entry) {
+        entry = { activeGemId: skill.activeGemId, supportGemIds: [], act };
+        seen.set(key, entry);
+        supportNames.set(entry, new Set());
+        groups[act].push(entry);
+      }
+
+      const nameSet = supportNames.get(entry)!;
+      for (const supId of skill.supportGemIds) {
+        if (!supId) continue;
+        const supGem = getGemById(supId);
+        const supName = (supGem ? supGem.nameDe : translateSkillId(supId)).toLowerCase();
+        if (!supName || nameSet.has(supName)) continue;
+        nameSet.add(supName);
+        entry.supportGemIds.push(supId);
+      }
     }
 
     return groups;

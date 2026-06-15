@@ -214,34 +214,36 @@ function assembleBuildGuideText(
   lines.push(`Level: ${level}`);
   if (description) lines.push(`Beschreibung: ${description}`);
 
-  // Skills deduplizieren: Map<activeGemId, Set<supportGemId>>
-  const skillMap = new Map<string, Set<string>>();
+  // Skills deduplizieren über einen kanonischen Schlüssel, damit derselbe
+  // Skill in unterschiedlichen ID-Formen (z. B. "explosivegrenade" vs.
+  // "ExplosiveGrenade" vs. Metadata-Pfad) nur EINMAL erscheint.
+  const skillMap = new Map<string, { name: string; supports: Set<string> }>();
   for (const skill of skillsByAct) {
-    if (!skillMap.has(skill.activeGemId)) {
-      skillMap.set(skill.activeGemId, new Set());
+    const gem = getGemById(skill.activeGemId);
+    const name = gem ? gem.nameDe : translateSkillId(skill.activeGemId);
+    const key = (gem ? gem.id : name).toLowerCase();
+
+    let entry = skillMap.get(key);
+    if (!entry) {
+      entry = { name, supports: new Set() };
+      skillMap.set(key, entry);
     }
+    // Support-Gems über alle Vorkommen zusammenführen, dedupliziert nach Name
     for (const supId of skill.supportGemIds) {
-      if (supId) skillMap.get(skill.activeGemId)!.add(supId);
+      if (!supId) continue;
+      const supGem = getGemById(supId);
+      const supName = supGem ? supGem.nameDe : translateSkillId(supId);
+      if (supName) entry.supports.add(supName);
     }
   }
 
   if (skillMap.size > 0) {
     lines.push("\nSkills & Support-Gems:");
-    for (const [activeId, supportIdSet] of skillMap) {
-      const activeGem = getGemById(activeId);
-      const activeName = activeGem ? activeGem.nameDe : translateSkillId(activeId);
-
-      const supports = [...supportIdSet]
-        .map((supId) => {
-          const supGem = getGemById(supId);
-          return supGem ? supGem.nameDe : translateSkillId(supId);
-        })
-        .filter(Boolean);
-
-      if (supports.length > 0) {
-        lines.push(`- ${activeName} [Supports: ${supports.join(", ")}]`);
+    for (const { name, supports } of skillMap.values()) {
+      if (supports.size > 0) {
+        lines.push(`- ${name} [Supports: ${[...supports].join(", ")}]`);
       } else {
-        lines.push(`- ${activeName}`);
+        lines.push(`- ${name}`);
       }
     }
   }
@@ -270,9 +272,17 @@ function assembleBuildGuideText(
 // ─── Stream-Reader ──────────────────────────────────────────────────────────────
 
 /**
- * Liest den Response-Body Chunk für Chunk und ruft `onChunk` mit dem
- * bisher akkumulierten Text auf. Gibt am Ende den vollständigen Text zurück.
- * Gemeinsame Logik für Text-, Bild- und Build-Datei-Anfragen (H-4).
+ * Liest den SSE-Stream der /api/translate-Route und ruft `onChunk` mit dem
+ * jeweils aktuellen Anzeige-Text auf. Gemeinsame Logik für Text-, Bild- und
+ * Build-Datei-Anfragen (H-4).
+ *
+ * Frames (newline-getrennt):
+ *   data: {"delta":"…"}   → Roh-Chunk, wird live angehängt
+ *   data: {"final":"…"}   → nach-prozessierter Volltext, ersetzt die Anzeige
+ *   data: {"error":"…"}   → Fehler → wirft
+ *   data: [DONE]          → Ende
+ *
+ * Gibt den finalen (nach-prozessierten) Text zurück, sonst den Live-Text.
  */
 async function streamToOutput(
   res: Response,
@@ -281,16 +291,50 @@ async function streamToOutput(
   if (!res.body) return "";
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let result = "";
+
+  let buffer = "";
+  let live = "";          // akkumulierte Roh-Deltas (Live-Anzeige)
+  let finalText: string | null = null;
+  let streamError: string | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    result += decoder.decode(value, { stream: true });
-    onChunk(result);
+
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const trimmed = frame.trim();
+      if (!trimmed.startsWith("data:")) continue;
+
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]" || data === "") continue;
+
+      try {
+        const obj = JSON.parse(data) as {
+          delta?: string;
+          final?: string;
+          error?: string;
+        };
+        if (typeof obj.delta === "string") {
+          live += obj.delta;
+          onChunk(live);
+        } else if (typeof obj.final === "string") {
+          finalText = obj.final;
+          onChunk(finalText); // Live-Text durch korrigierte Version ersetzen
+        } else if (typeof obj.error === "string") {
+          streamError = obj.error;
+        }
+      } catch {
+        // Ungültiges JSON-Frame — ignorieren
+      }
+    }
   }
 
-  return result;
+  if (streamError) throw new Error(streamError);
+  return finalText ?? live;
 }
 
 // ─── Haupt-Komponente ─────────────────────────────────────────────────────────
