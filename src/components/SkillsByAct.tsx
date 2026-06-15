@@ -33,16 +33,16 @@ function getGemDisplayColor(gem: Gem | undefined): string {
  * SkillsByAct – Maxroll-ähnliche Skill-Übersicht.
  *
  * Gruppiert Skills nach Akt und zeigt aktive Gemmen mit ihren
- * Support-Gemmen als farbige Pills/Tags im dunklen Design.
+ * Support-Gemmen als eingerückte Liste mit "└"-Verbindungszeichen.
  *
- * Maximal 2 Skills pro Reihe.
+ * 3-spaltiges Card-Grid pro Akt (1-spaltig auf Mobile).
  * Farben: Aktiv = Orange, Support = Grün, Spirit = Blau
- * Alle Begriffe aus poe2-translations.json / App-Datenbanken.
+ * "Player Default"-Einträge werden herausgefiltert.
  */
 export default function SkillsByAct() {
   const skillsByAct = useBuildStore((s) => s.skillsByAct);
 
-  // Skills deduplizieren und nach Akt gruppieren.
+  // Skills deduplizieren, "Player Default" filtern und nach Akt gruppieren.
   // Jeder Skill erscheint nur EINMAL – in seinem zuerst auftretenden Akt –
   // mit über alle Akte zusammengeführten (und nach Name deduplizierten)
   // Support-Gems.
@@ -54,6 +54,10 @@ export default function SkillsByAct() {
     for (const skill of skillsByAct) {
       const act = skill.act >= 1 && skill.act <= 4 ? skill.act : 1;
       const gem = getGemById(skill.activeGemId);
+
+      // "Player Default"-Einträge herausfiltern
+      if (gem && gem.nameEn.toLowerCase().includes("player default")) continue;
+
       const key = (gem ? gem.id : translateSkillId(skill.activeGemId)).toLowerCase();
 
       let entry = seen.get(key);
@@ -132,8 +136,8 @@ export default function SkillsByAct() {
                 {ACT_NAMES[act]}
               </h3>
 
-              {/* Skills-Cards – maximal 2 pro Reihe */}
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              {/* Skills-Cards – 3-spaltig auf Desktop, 1-spaltig auf Mobile */}
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {actSkills.map((skill, idx) => {
                   const activeGem = getGemById(skill.activeGemId);
                   const activeNameDe = activeGem
@@ -141,34 +145,52 @@ export default function SkillsByAct() {
                     : translateSkillId(skill.activeGemId);
 
                   const gemColor = getGemDisplayColor(activeGem);
+                  const isActive = activeGem?.type !== "support";
 
                   const supportGems = skill.supportGemIds
                     .map((id) => {
                       const gem = getGemById(id);
-                      return gem ? { name: gem.nameDe, gem } : { name: translateSkillId(id), gem: undefined };
+                      return gem
+                        ? { name: gem.nameDe, gem }
+                        : { name: translateSkillId(id), gem: undefined };
                     })
                     .filter((s) => Boolean(s.name));
 
                   return (
                     <div
                       key={`${skill.activeGemId}-${idx}`}
-                      className="rounded-xl p-3.5 transition-all duration-200"
+                      className="rounded-xl p-4 transition-all duration-200 relative"
                       style={{
                         background: "rgba(255, 255, 255, 0.03)",
                         border: "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
-                        e.currentTarget.style.borderColor = "rgba(200, 169, 110, 0.2)";
+                        e.currentTarget.style.background =
+                          "rgba(255, 255, 255, 0.05)";
+                        e.currentTarget.style.borderColor =
+                          "rgba(200, 169, 110, 0.2)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.03)";
-                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.06)";
+                        e.currentTarget.style.background =
+                          "rgba(255, 255, 255, 0.03)";
+                        e.currentTarget.style.borderColor =
+                          "rgba(255, 255, 255, 0.06)";
                       }}
                     >
-                      {/* Aktive Gemme – Name + Farb-Indikator */}
-                      <div className="flex items-center gap-2.5">
-                        {/* Farb-Indikator (orange = aktiv) */}
+                      {/* AKTIV/PASSIV Badge – oben rechts */}
+                      <span
+                        className="absolute top-3 right-3 text-[10px] font-semibold px-2 py-0.5 rounded"
+                        style={{
+                          background: `${gemColor}1a`,
+                          color: gemColor,
+                          border: `1px solid ${gemColor}33`,
+                        }}
+                      >
+                        {isActive ? "AKTIV" : "PASSIV"}
+                      </span>
+
+                      {/* Skill-Name groß oben */}
+                      <div className="flex items-center gap-2.5 pr-16">
                         <span
                           className="h-3 w-3 rounded-full flex-shrink-0"
                           style={{
@@ -176,58 +198,52 @@ export default function SkillsByAct() {
                             boxShadow: `0 0 6px ${gemColor}66`,
                           }}
                         />
-
                         <span
-                          className="text-sm font-semibold truncate"
+                          className="text-sm font-semibold leading-tight"
                           style={{ color: "#e8e0d0" }}
                         >
                           {activeNameDe}
                         </span>
-
-                        {/* Typ-Badge */}
-                        <span
-                          className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
-                          style={{
-                            background: `${gemColor}1a`,
-                            color: gemColor,
-                            border: `1px solid ${gemColor}33`,
-                          }}
-                        >
-                          {activeGem?.type === "support" ? "SUPPORT" : "AKTIV"}
-                        </span>
                       </div>
 
-                      {/* Support-Gemmen als farbige Pills/Tags */}
-                      {supportGems.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {supportGems.map((sup, si) => {
+                      {/* Support-Gemmen eingerückt mit └ */}
+                      <div className="mt-3 ml-5 space-y-1">
+                        {supportGems.length > 0 ? (
+                          supportGems.map((sup, si) => {
                             const supColor = getGemDisplayColor(sup.gem);
                             return (
-                              <span
+                              <div
                                 key={si}
-                                className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium"
-                                style={{
-                                  background: `${supColor}14`,
-                                  color: supColor,
-                                  border: `1px solid ${supColor}2a`,
-                                }}
+                                className="flex items-center gap-1.5 text-[12px]"
+                                style={{ color: supColor }}
                               >
-                                {sup.name}
-                              </span>
+                                <span
+                                  className="flex-shrink-0 text-[10px]"
+                                  style={{
+                                    color: "rgba(255, 255, 255, 0.25)",
+                                  }}
+                                >
+                                  └
+                                </span>
+                                <span className="truncate">{sup.name}</span>
+                              </div>
                             );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Keine Supports */}
-                      {supportGems.length === 0 && (
-                        <p
-                          className="mt-2 text-[11px] italic"
-                          style={{ color: "rgba(255, 255, 255, 0.2)" }}
-                        >
-                          Keine Support-Gemmen
-                        </p>
-                      )}
+                          })
+                        ) : (
+                          <p
+                            className="text-[11px] italic flex items-center gap-1.5"
+                            style={{ color: "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span
+                              className="flex-shrink-0 text-[10px]"
+                              style={{ color: "rgba(255, 255, 255, 0.15)" }}
+                            >
+                              └
+                            </span>
+                            Keine Support-Gemmen
+                          </p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
