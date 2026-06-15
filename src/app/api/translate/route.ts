@@ -335,16 +335,24 @@ export async function POST(request: Request) {
       { role: "user", content },
     ];
   } else if (payload.type === "build") {
-    const buildData = typeof payload.buildData === "string" ? payload.buildData.trim() : "";
-    if (!buildData) {
+    const rawBuildData = typeof payload.buildData === "string" ? payload.buildData.trim() : "";
+    if (!rawBuildData) {
       return Response.json({ error: "Keine Build-Daten übermittelt." }, { status: 400 });
     }
-    if (buildData.length > MAX_TEXT_CHARS) {
+    if (rawBuildData.length > MAX_TEXT_CHARS) {
       return Response.json(
         { error: `Build-Daten zu groß (max. ${MAX_TEXT_CHARS.toLocaleString("de-DE")} Zeichen).` },
         { status: 400 }
       );
     }
+
+    // "Player Default"-Einträge aus den Build-Daten filtern,
+    // damit sie nicht im generierten Guide-Text auftauchen.
+    const buildData = rawBuildData
+      .split("\n")
+      .filter((line) => !line.toLowerCase().includes("player default"))
+      .join("\n");
+
     model = "mistral-small-2506";
     messages = [
       { role: "system", content: BUILD_GUIDE_SYSTEM_PROMPT },

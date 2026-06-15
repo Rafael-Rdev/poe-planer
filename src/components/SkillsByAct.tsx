@@ -55,8 +55,14 @@ export default function SkillsByAct() {
       const act = skill.act >= 1 && skill.act <= 4 ? skill.act : 1;
       const gem = getGemById(skill.activeGemId);
 
-      // "Player Default"-Einträge herausfiltern
-      if (gem && gem.nameEn.toLowerCase().includes("player default")) continue;
+      // "Player Default"-Einträge herausfiltern –
+      // prüft nameEn UND nameDe (samt Fallback), case-insensitive.
+      const nameDe = gem ? gem.nameDe : translateSkillId(skill.activeGemId);
+      const nameEn = gem ? gem.nameEn : translateSkillId(skill.activeGemId);
+      if (
+        nameDe.toLowerCase().includes("player default") ||
+        nameEn.toLowerCase().includes("player default")
+      ) continue;
 
       const key = (gem ? gem.id : translateSkillId(skill.activeGemId)).toLowerCase();
 
