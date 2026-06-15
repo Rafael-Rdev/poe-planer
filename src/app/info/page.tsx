@@ -22,7 +22,7 @@ export default function InfoPage() {
             Der Build-Guide Übersetzer nimmt englische Path of Exile 2 Build-Guides — egal ob
             von Maxroll, Mobalytics, Reddit, Discord oder YouTube-Beschreibungen — und übersetzt
             sie strukturiert auf Deutsch. Dabei werden ausschließlich die offiziellen deutschen
-            PS5-Bezeichnungen für Skills, Passive Nodes und Items verwendet.
+            Spielbegriffe für Skills, Passive Nodes und Items verwendet.
           </p>
         </div>
 
@@ -73,13 +73,10 @@ export default function InfoPage() {
           </p>
           <ul className="space-y-1.5">
             {[
-              "Build-Name & Klasse",
-              "Spielstil (2–3 Sätze)",
-              "Stärken & Schwächen",
-              "Level-Phasen (1–20 / 20–40 / 40–70 / Endgame)",
-              "Pflicht-Items",
-              "Empfohlene Items",
-              "Skill-Verlinkungen (Gem Links)",
+              "Build-Überblick",
+              "Skills & Gems",
+              "Rotation",
+              "Top 5 Passive-Punkte",
             ].map((item) => (
               <li key={item} className="flex items-center gap-2 text-sm text-zinc-400">
                 <span className="text-amber-600">▸</span>
@@ -93,8 +90,8 @@ export default function InfoPage() {
         <div className="rounded-xl border border-amber-900/40 bg-amber-950/20 p-5">
           <h2 className="text-base font-semibold text-amber-300 mb-2">Hinweis für Entwickler</h2>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            Die App verwendet die Anthropic Claude API. Für den lokalen Betrieb wird ein
-            {" "}<code className="text-amber-400 bg-zinc-800 px-1 py-0.5 rounded text-xs">ANTHROPIC_API_KEY</code>{" "}
+            Die App verwendet die Mistral API. Für den lokalen Betrieb wird ein
+            {" "}<code className="text-amber-400 bg-zinc-800 px-1 py-0.5 rounded text-xs">MISTRAL_API_KEY</code>{" "}
             in <code className="text-amber-400 bg-zinc-800 px-1 py-0.5 rounded text-xs">.env.local</code> benötigt.
             Auf Vercel wird der Key in den Environment Variables gesetzt.
           </p>
