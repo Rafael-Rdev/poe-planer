@@ -3,55 +3,92 @@
 import { useMemo } from "react";
 import { useBuildStore } from "@/context/buildStore";
 import { getPassiveTalentById } from "@/data/passives";
-import { translateTerm, translateTagId } from "@/lib/poe2Translator";
 import { Zap } from "lucide-react";
 
 /**
- * PassiveNotables – Zeigt nur Notable-Namen als kompakte Tags/Liste an.
+ * PassiveNotables – Zeigt NUR echte Notable-Namen als kompakte Tags.
  *
- * Kein "Allocation Step #1, #2..." Format mehr.
- * Deutsche Notable-Namen aus poe2-translations.json.
+ * Filtert generische IDs (wie "grenades", "projectiles", "fire") heraus,
+ * die nicht in der passiveTalents-Datenbank existieren.
+ * Entfernt Duplikate (case-insensitive).
  */
 export default function PassiveNotables() {
   const selectedPassives = useBuildStore((s) => s.selectedPassives);
 
-  // Notable-Namen auflösen und ins Deutsche übersetzen
+  // Nur echte Notable-Namen auflösen, Duplikate entfernen
   const notables = useMemo(() => {
-    return selectedPassives
-      .map((id) => {
-        const talent = getPassiveTalentById(id);
-        if (talent) {
-          // nameDe ist bereits in der Datenbank vorhanden
-          return talent.nameDe || translateTerm(talent.nameEn);
-        }
-        // Fallback: ID bereinigen und übersetzen (z.B. "projectiles18" → "Projektile")
-        return translateTagId(id);
-      })
-      .filter(Boolean);
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const id of selectedPassives) {
+      // Prüfe ob die ID in der passives-Datenbank existiert
+      const talent = getPassiveTalentById(id);
+      if (!talent) {
+        // Kein Eintrag in der DB → generische ID, überspringen
+        continue;
+      }
+
+      const name = talent.nameDe || talent.nameEn;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue; // Duplikat entfernen
+
+      seen.add(key);
+      result.push(name);
+    }
+
+    return result;
   }, [selectedPassives]);
 
   if (notables.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+    <div
+      className="rounded-2xl border overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+        borderColor: "rgba(200, 169, 110, 0.15)",
+      }}
+    >
       {/* Header */}
-      <div className="px-5 py-3 border-b border-zinc-800/50 bg-zinc-900/50">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-200">
-          <Zap className="h-4 w-4 text-amber-400" />
+      <div
+        className="px-5 py-3.5"
+        style={{
+          borderBottom: "1px solid rgba(200, 169, 110, 0.1)",
+          background: "rgba(0, 0, 0, 0.15)",
+        }}
+      >
+        <h2
+          className="flex items-center gap-2 text-base font-semibold"
+          style={{ color: "#f0e6d3" }}
+        >
+          <Zap className="h-4 w-4" style={{ color: "#c8a96e" }} />
           Passive Notables
         </h2>
-        <p className="mt-0.5 text-xs text-zinc-500">
+        <p className="mt-0.5 text-xs" style={{ color: "rgba(255, 255, 255, 0.3)" }}>
           {notables.length} Notable{notables.length !== 1 ? "s" : ""} ausgewählt
         </p>
       </div>
 
-      {/* Tags */}
-      <div className="p-4">
+      {/* Tags – kompakt in 2-3 Zeilen */}
+      <div className="p-5">
         <div className="flex flex-wrap gap-2">
-          {notables.map((name, idx) => (
+          {notables.map((name) => (
             <span
-              key={`${name}-${idx}`}
-              className="inline-flex items-center rounded-lg border border-zinc-700/50 bg-zinc-800/70 px-3 py-1.5 text-sm text-zinc-300 hover:border-amber-700/50 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+              key={name}
+              className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200"
+              style={{
+                background: "rgba(200, 169, 110, 0.08)",
+                color: "#d4b87a",
+                border: "1px solid rgba(200, 169, 110, 0.18)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(200, 169, 110, 0.16)";
+                e.currentTarget.style.borderColor = "rgba(200, 169, 110, 0.35)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(200, 169, 110, 0.08)";
+                e.currentTarget.style.borderColor = "rgba(200, 169, 110, 0.18)";
+              }}
             >
               {name}
             </span>

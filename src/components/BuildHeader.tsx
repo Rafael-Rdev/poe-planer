@@ -1,16 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useBuildStore } from "@/context/buildStore";
 import { getCharacterClassById } from "@/data/passives";
 import { translateTerm, translateDescription } from "@/lib/poe2Translator";
-import { User, Star, FileText, ChevronRight } from "lucide-react";
+import { User, Star, ChevronDown, ChevronUp } from "lucide-react";
 
 /**
- * BuildHeader – Zeigt Build-Name, Autor, Ascendancy (deutsch) und
- * Kurzbeschreibung im Maxroll-Stil an.
+ * BuildHeader – Maxroll-ähnlicher Build-Header im dunklen Design.
  *
- * Alle Begriffe werden über poe2-translations.json übersetzt.
- * KEIN Mistral/API-Aufruf.
+ * - Build-Name groß & prominent
+ * - Klasse + Ascendancy als Badges
+ * - Autor klein
+ * - Beschreibung als aufklappbarer Block
+ *
+ * Farbpalette: Hintergrund #1a1a2e, Akzente #c8a96e (PoE-Gold)
  */
 export default function BuildHeader() {
   const buildName = useBuildStore((s) => s.buildName);
@@ -19,6 +23,8 @@ export default function BuildHeader() {
   const description = useBuildStore((s) => s.description);
   const characterClass = useBuildStore((s) => s.characterClass);
   const level = useBuildStore((s) => s.level);
+
+  const [descOpen, setDescOpen] = useState(false);
 
   // Klassenname deutsch aus der Datenbank
   const classInfo = characterClass ? getCharacterClassById(characterClass) : null;
@@ -33,64 +39,125 @@ export default function BuildHeader() {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 overflow-hidden">
-      {/* Header-Leiste mit Build-Name */}
-      <div className="px-5 py-4 border-b border-zinc-800/50 bg-zinc-900/50">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Build-Name */}
-          <h1 className="text-xl font-bold text-zinc-100 tracking-tight">
-            {buildName || "Unbenannter Build"}
-          </h1>
+    <div
+      className="rounded-2xl border shadow-lg overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+        borderColor: "rgba(200, 169, 110, 0.15)",
+      }}
+    >
+      {/* Obere Sektion: Build-Name, Level, Klasse/Ascendancy */}
+      <div className="px-6 py-5">
+        {/* Build-Name – groß & prominent */}
+        <h1
+          className="text-2xl sm:text-3xl font-bold tracking-tight mb-3"
+          style={{ color: "#f0e6d3" }}
+        >
+          {buildName || "Unbenannter Build"}
+        </h1>
 
+        {/* Badges: Level, Klasse, Ascendancy */}
+        <div className="flex flex-wrap items-center gap-2.5 mb-2">
           {/* Level Badge */}
           {level > 1 && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-700/50 bg-amber-900/20 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+            <span
+              className="inline-flex items-center rounded-lg px-3 py-1 text-xs font-bold"
+              style={{
+                background: "rgba(200, 169, 110, 0.12)",
+                color: "#c8a96e",
+                border: "1px solid rgba(200, 169, 110, 0.25)",
+              }}
+            >
               Lv. {level}
             </span>
           )}
-        </div>
 
-        {/* Meta-Info Zeile */}
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
-          {/* Klasse & Ascendancy */}
+          {/* Klasse Badge */}
           {classNameDe && (
-            <span className="inline-flex items-center gap-1.5">
-              <Star className="h-3.5 w-3.5 text-amber-500" />
-              <span className="text-zinc-300 font-medium">{classNameDe}</span>
-              {ascendancyDe && ascendancyDe !== classNameDe && (
-                <>
-                  <ChevronRight className="h-3 w-3 text-zinc-600" />
-                  <span className="text-amber-400 font-semibold">{ascendancyDe}</span>
-                </>
-              )}
+            <span
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold"
+              style={{
+                background: "rgba(255, 255, 255, 0.05)",
+                color: "#c8c8d0",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+              }}
+            >
+              <Star className="h-3 w-3" style={{ color: "#c8a96e" }} />
+              {classNameDe}
             </span>
           )}
 
-          {/* Ascendancy allein (falls keine Klasse gesetzt) */}
+          {/* Ascendancy Badge – nur wenn von Klasse verschieden */}
+          {ascendancyDe && ascendancyDe !== classNameDe && (
+            <span
+              className="inline-flex items-center rounded-lg px-3 py-1 text-xs font-bold"
+              style={{
+                background: "rgba(200, 169, 110, 0.18)",
+                color: "#d4b87a",
+                border: "1px solid rgba(200, 169, 110, 0.3)",
+              }}
+            >
+              {ascendancyDe}
+            </span>
+          )}
+
+          {/* Ascendancy allein (falls keine Klasse) */}
           {!classNameDe && ascendancyDe && (
-            <span className="inline-flex items-center gap-1.5">
-              <Star className="h-3.5 w-3.5 text-amber-500" />
-              <span className="text-amber-400 font-semibold">{ascendancyDe}</span>
-            </span>
-          )}
-
-          {/* Autor */}
-          {author && (
-            <span className="inline-flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-zinc-500" />
-              <span>{author}</span>
+            <span
+              className="inline-flex items-center rounded-lg px-3 py-1 text-xs font-bold"
+              style={{
+                background: "rgba(200, 169, 110, 0.18)",
+                color: "#d4b87a",
+                border: "1px solid rgba(200, 169, 110, 0.3)",
+              }}
+            >
+              {ascendancyDe}
             </span>
           )}
         </div>
+
+        {/* Autor – klein & dezent */}
+        {author && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <User className="h-3.5 w-3.5" style={{ color: "rgba(200, 169, 110, 0.5)" }} />
+            <span className="text-xs" style={{ color: "rgba(255, 255, 255, 0.35)" }}>
+              {author}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Beschreibung */}
+      {/* Beschreibung – aufklappbar */}
       {description && (
-        <div className="px-5 py-3 bg-zinc-950/50">
-          <div className="flex items-start gap-2">
-            <FileText className="h-4 w-4 text-zinc-600 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-zinc-400 leading-relaxed">{translateDescription(description)}</p>
-          </div>
+        <div
+          style={{
+            borderTop: "1px solid rgba(200, 169, 110, 0.08)",
+            background: "rgba(0, 0, 0, 0.2)",
+          }}
+        >
+          <button
+            onClick={() => setDescOpen(!descOpen)}
+            className="w-full px-6 py-2.5 flex items-center justify-between text-xs font-medium transition-colors hover:bg-white/5"
+            style={{ color: "rgba(200, 169, 110, 0.7)" }}
+          >
+            <span>Beschreibung</span>
+            {descOpen ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+
+          {descOpen && (
+            <div className="px-6 pb-4">
+              <p
+                className="text-sm leading-relaxed"
+                style={{ color: "rgba(255, 255, 255, 0.5)" }}
+              >
+                {translateDescription(description)}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
