@@ -21,6 +21,45 @@ import { resolve } from "path";
 const MAX_TEXT_CHARS = 30_000;
 const MAX_IMAGES = 5;
 
+// K-2: Größen-Limits (Body-Header & pro Bild-base64)
+const MAX_BODY_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_IMAGE_DATA_CHARS = 2 * 1024 * 1024; // 2 MB base64-String pro Bild
+const ALLOWED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+// ─── K-1: Rate-Limiting (In-Memory, pro IP) ─────────────────────────────────
+// Hinweis: In-Memory reicht für eine einzelne Instanz. Für Multi-Instance-
+// Deployments (mehrere Serverless-Lambdas) sollte ein geteilter Store
+// (z. B. Upstash/Vercel KV) genutzt werden.
+
+const RATE_LIMIT_MAX = 10; // max. Requests
+const RATE_LIMIT_WINDOW_MS = 60_000; // pro Minute
+
+const _rateLimitHits = new Map<string, { count: number; windowStart: number }>();
+
+function getClientIp(request: Request): string {
+  const fwd = request.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
+
+/** Gibt true zurück, wenn der Request erlaubt ist; false bei Überschreitung. */
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = _rateLimitHits.get(ip);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    _rateLimitHits.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
 // ─── Übersetzungs-Dictionary (einmalig auf Modul-Level cachen) ───────────────
 
 interface TranslationDict {
@@ -35,10 +74,22 @@ interface TranslationDict {
   };
 }
 
-let _dictEntries: Array<[string, string]> | null = null;
+interface CompiledDict {
+  /** Eine kombinierte Regex über alle Begriffe (längere zuerst), case-insensitive. */
+  pattern: RegExp | null;
+  /** lowercase(englisch) → deutsch, für den Lookup im Replace-Callback. */
+  map: Map<string, string>;
+}
 
-function getDictEntries(): Array<[string, string]> {
-  if (_dictEntries !== null) return _dictEntries;
+let _compiledDict: CompiledDict | null = null;
+
+/**
+ * Lädt das Dictionary einmalig und baut daraus eine EINZIGE kombinierte Regex
+ * (Alternation aller Begriffe) plus eine Lookup-Map. Dadurch genügt pro Request
+ * ein einziger `String.replace`-Durchlauf statt eines pro Eintrag.
+ */
+function getCompiledDict(): CompiledDict {
+  if (_compiledDict !== null) return _compiledDict;
 
   try {
     const filePath = resolve(process.cwd(), "scripts", "poe2-translations.json");
@@ -59,19 +110,35 @@ function getDictEntries(): Array<[string, string]> {
       }
     }
 
-    // Nach Länge absteigend sortieren: längere Phrasen zuerst ersetzen,
-    // damit z.B. "Lightning Arrow" vor "Arrow" gematcht wird.
+    // Nach Länge absteigend sortieren: längere Phrasen zuerst in der Alternation,
+    // damit z.B. "Lightning Arrow" vor "Arrow" gematcht wird (Regex-Alternation
+    // ist greedy von links und nimmt die erste passende Alternative).
     entries.sort((a, b) => b[0].length - a[0].length);
-    _dictEntries = entries;
+
+    const map = new Map<string, string>();
+    for (const [en, de] of entries) {
+      const key = en.toLowerCase();
+      if (!map.has(key)) map.set(key, de);
+    }
+
+    const pattern =
+      entries.length > 0
+        ? new RegExp(
+            "\\b(" + entries.map(([en]) => escapeRegex(en)).join("|") + ")\\b",
+            "gi"
+          )
+        : null;
+
+    _compiledDict = { pattern, map };
   } catch (err) {
     console.warn(
       "[translate/route] Dictionary laden fehlgeschlagen:",
       err instanceof Error ? err.message : err
     );
-    _dictEntries = [];
+    _compiledDict = { pattern: null, map: new Map() };
   }
 
-  return _dictEntries;
+  return _compiledDict;
 }
 
 const SYSTEM_PROMPT = `Du bist ein Übersetzer für Path of Exile 2 Build-Guides. Übersetze den folgenden englischen Text ins Deutsche. Übersetze natürlichsprachliche Beschreibungen, behalte aber Spielbegriffe (Skill-Namen, Item-Namen, Stats) möglichst im englischen Original – die werden später automatisch ersetzt. Antworte NUR mit der deutschen Übersetzung, ohne Erklärungen.`;
@@ -139,32 +206,23 @@ function applyCapitalization(translation: string, original: string): string {
 function applyDictionaryPostProcessing(
   translatedText: string
 ): { result: string; replacements: string[] } {
-  const replacements: string[] = [];
-  const entries = getDictEntries();
+  const { pattern, map } = getCompiledDict();
 
-  if (entries.length === 0) {
+  if (!pattern || map.size === 0) {
     return { result: translatedText, replacements: [] };
   }
 
-  let result = translatedText;
+  // Einziger Durchlauf über den Text mit der kombinierten Regex.
+  const replacedSet = new Set<string>();
 
-  for (const [english, german] of entries) {
-    // Nur exakte Wort-Matches mit Wortgrenzen, case-insensitive
-    const regex = new RegExp("\\b" + escapeRegex(english) + "\\b", "gi");
+  const result = translatedText.replace(pattern, (match) => {
+    const german = map.get(match.toLowerCase());
+    if (german === undefined) return match;
+    replacedSet.add(`${match} → ${german}`);
+    return applyCapitalization(german, match);
+  });
 
-    let wasReplaced = false;
-
-    result = result.replace(regex, (match) => {
-      wasReplaced = true;
-      return applyCapitalization(german, match);
-    });
-
-    if (wasReplaced) {
-      replacements.push(`${english} → ${german}`);
-    }
-  }
-
-  return { result, replacements };
+  return { result, replacements: [...replacedSet] };
 }
 
 // ─── POST-Handler ───────────────────────────────────────────────────────────
@@ -175,6 +233,24 @@ export async function POST(request: Request) {
     return Response.json(
       { error: "MISTRAL_API_KEY nicht gesetzt. Bitte in .env.local eintragen." },
       { status: 500 }
+    );
+  }
+
+  // K-1: Rate-Limit pro IP
+  const ip = getClientIp(request);
+  if (!checkRateLimit(ip)) {
+    return Response.json(
+      { error: "Zu viele Anfragen. Bitte kurz warten und erneut versuchen." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
+  }
+
+  // K-2: Body-Größe VOR dem Parsen anhand des Content-Length-Headers prüfen
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return Response.json(
+      { error: "Anfrage zu groß (max. 8 MB)." },
+      { status: 413 }
     );
   }
 
@@ -221,6 +297,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    // K-2: Pro Bild Größe & MediaType validieren
+    for (const img of images) {
+      if (!img || typeof img.data !== "string" || img.data.length === 0) {
+        return Response.json({ error: "Ungültige Bilddaten." }, { status: 400 });
+      }
+      if (img.data.length > MAX_IMAGE_DATA_CHARS) {
+        return Response.json(
+          { error: "Bild zu groß (max. 2 MB pro Bild)." },
+          { status: 413 }
+        );
+      }
+      if (!ALLOWED_MEDIA_TYPES.has(img.mediaType)) {
+        return Response.json(
+          { error: "Ungültiger Bildtyp. Nur JPEG, PNG oder WebP." },
+          { status: 400 }
+        );
+      }
+    }
     model = "pixtral-12b";
     // Mistral Vision: Bilder als base64 Data-URLs im content-Array, ohne detail-Parameter
     const content: Array<Record<string, unknown>> = [
@@ -235,8 +329,9 @@ export async function POST(request: Request) {
         image_url: { url: `data:${img.mediaType};base64,${img.data}` },
       });
     }
+    // H-1: Bilder sollen einen Guide erzeugen → BUILD_GUIDE_SYSTEM_PROMPT
     messages = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: BUILD_GUIDE_SYSTEM_PROMPT },
       { role: "user", content },
     ];
   } else if (payload.type === "build") {
@@ -280,8 +375,13 @@ export async function POST(request: Request) {
 
     if (!response.ok || !response.body) {
       const errText = await response.text().catch(() => response.statusText);
+      // H-3: Details nur serverseitig loggen, dem Client nur eine generische Meldung
+      console.error(
+        `[translate/route] Mistral API Fehler ${response.status}:`,
+        errText
+      );
       return Response.json(
-        { error: `Mistral API Fehler ${response.status}: ${errText}` },
+        { error: "Übersetzungsdienst momentan nicht verfügbar." },
         { status: 502 }
       );
     }
@@ -326,9 +426,13 @@ export async function POST(request: Request) {
       }
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
+    // H-3: Details nur serverseitig loggen
+    console.error(
+      "[translate/route] Fehler bei der Übersetzung:",
+      err instanceof Error ? err.message : err
+    );
     return Response.json(
-      { error: `Fehler bei der Übersetzung: ${msg}` },
+      { error: "Übersetzungsdienst momentan nicht verfügbar." },
       { status: 500 }
     );
   }
