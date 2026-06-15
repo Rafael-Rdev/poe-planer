@@ -220,7 +220,8 @@ function assembleBuildGuideText(
   const skillMap = new Map<string, { name: string; supports: Set<string> }>();
   for (const skill of skillsByAct) {
     const gem = getGemById(skill.activeGemId);
-    const name = gem ? gem.nameDe : translateSkillId(skill.activeGemId);
+    const rawName = gem ? gem.nameDe : translateSkillId(skill.activeGemId);
+    const name = translateTerm(rawName);
     const key = (gem ? gem.id : name).toLowerCase();
 
     let entry = skillMap.get(key);
@@ -232,7 +233,8 @@ function assembleBuildGuideText(
     for (const supId of skill.supportGemIds) {
       if (!supId) continue;
       const supGem = getGemById(supId);
-      const supName = supGem ? supGem.nameDe : translateSkillId(supId);
+      const rawSupName = supGem ? supGem.nameDe : translateSkillId(supId);
+      const supName = translateTerm(rawSupName);
       if (supName) entry.supports.add(supName);
     }
   }
@@ -254,7 +256,8 @@ function assembleBuildGuideText(
   for (const id of selectedPassives) {
     const talent = getPassiveTalentById(id);
     if (!talent) continue;
-    const name = talent.nameDe || talent.nameEn;
+    const rawName = talent.nameDe || talent.nameEn;
+    const name = translateTerm(rawName);
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -371,7 +374,10 @@ export default function TranslatePage() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const json = JSON.parse(e.target?.result as string) as Record<string, unknown>;
+        const rawText = e.target?.result as string;
+        // TEMP: Rohes JSON der .build-Datei vor jeglicher Verarbeitung loggen
+        console.log("[parseBuildFile] ROHES JSON AUS .BUILD-DATEI:\n", rawText);
+        const json = JSON.parse(rawText) as Record<string, unknown>;
 
         // Build-Metadaten in den Store schreiben
         if (typeof json.name === "string") store.setBuildName(stripMarkup(json.name));
