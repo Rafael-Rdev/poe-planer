@@ -267,6 +267,32 @@ function assembleBuildGuideText(
   return lines.join("\n");
 }
 
+// ─── Stream-Reader ──────────────────────────────────────────────────────────────
+
+/**
+ * Liest den Response-Body Chunk für Chunk und ruft `onChunk` mit dem
+ * bisher akkumulierten Text auf. Gibt am Ende den vollständigen Text zurück.
+ * Gemeinsame Logik für Text-, Bild- und Build-Datei-Anfragen (H-4).
+ */
+async function streamToOutput(
+  res: Response,
+  onChunk: (text: string) => void
+): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let result = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    result += decoder.decode(value, { stream: true });
+    onChunk(result);
+  }
+
+  return result;
+}
+
 // ─── Haupt-Komponente ─────────────────────────────────────────────────────────
 
 export default function TranslatePage() {
@@ -286,6 +312,8 @@ export default function TranslatePage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const buildFileInputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  // N-4: laufende Mistral-Anfrage abbrechbar machen
+  const abortRef = useRef<AbortController | null>(null);
 
   const { saveBuild } = useSavedBuildsStore();
   const store = useBuildStore();
@@ -378,6 +406,8 @@ export default function TranslatePage() {
 
   // M4: Tab-Wechsel mit State-Clearing
   const handleTabChange = (tab: "text" | "images" | "file") => {
+    // N-4: laufende Anfrage beim Tab-Wechsel abbrechen
+    abortRef.current?.abort();
     if (activeTab === "images" && tab !== "images") setImages([]);
     if (activeTab === "file" && tab !== "file") {
       setBuildFile(null);
@@ -398,6 +428,11 @@ export default function TranslatePage() {
   // Zustand aus localStorage laden
   useEffect(() => {
     void useSavedBuildsStore.persist.rehydrate();
+  }, []);
+
+  // N-4: beim Unmount laufende Anfrage abbrechen
+  useEffect(() => {
+    return () => abortRef.current?.abort();
   }, []);
 
   // Bei neuer Ausgabe: zum Ergebnis scrollen (nur beim ersten Mal)
@@ -499,11 +534,15 @@ export default function TranslatePage() {
         store.selectedPassives
       );
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
         const res = await fetch("/api/translate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "build", buildData: buildText }),
+          signal: controller.signal,
         });
 
         if (!res.ok || !res.body) {
@@ -513,24 +552,18 @@ export default function TranslatePage() {
           );
         }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let result = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          result += decoder.decode(value, { stream: true });
-          setOutput(result);
-        }
+        const result = await streamToOutput(res, setOutput);
 
         if (!buildName) {
           const match = /^##\s+(.+?)$/m.exec(result);
           if (match) setBuildName(match[1].trim());
         }
       } catch (err) {
+        // N-4: abgebrochene Anfragen erzeugen keinen Fehler-State
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Unbekannter Fehler.");
       } finally {
+        if (abortRef.current === controller) abortRef.current = null;
         setIsLoading(false);
       }
 
@@ -556,11 +589,15 @@ export default function TranslatePage() {
             images: images.map((img) => ({ data: img.data, mediaType: img.mediaType })),
           };
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -570,16 +607,7 @@ export default function TranslatePage() {
         );
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let result = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        result += decoder.decode(value, { stream: true });
-        setOutput(result);
-      }
+      const result = await streamToOutput(res, setOutput);
 
       // Build-Name aus erster ## Zeile extrahieren (Fallback)
       if (!buildName) {
@@ -587,8 +615,11 @@ export default function TranslatePage() {
         if (match) setBuildName(match[1].trim().replace(/Build-Name[&\s]*Klasse[:\s]*/i, "").trim());
       }
     } catch (err) {
+      // N-4: abgebrochene Anfragen erzeugen keinen Fehler-State
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Unbekannter Fehler.");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setIsLoading(false);
     }
   };
@@ -619,7 +650,7 @@ export default function TranslatePage() {
           Build-Guide Übersetzer
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Englischen Guide einfügen → strukturiert auf Deutsch mit offiziellen PS5-Begriffen
+          Englischen Guide einfügen → strukturiert auf Deutsch mit offiziellen deutschen Spielbegriffen
         </p>
       </div>
 
