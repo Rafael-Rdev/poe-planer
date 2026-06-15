@@ -19,6 +19,10 @@ import { useBuildStore } from "@/context/buildStore";
 import BuildHeader from "@/components/BuildHeader";
 import SkillsByAct from "@/components/SkillsByAct";
 import PassiveNotables from "@/components/PassiveNotables";
+import { translateSkillId, translateTerm } from "@/lib/poe2Translator";
+import { getGemById } from "@/data/gems";
+import { getPassiveTalentById } from "@/data/passives";
+import type { BuildSkill } from "@/types/parser";
 
 // ─── Typen ───────────────────────────────────────────────────────────────────
 
@@ -173,6 +177,96 @@ function fallbackToOriginalDataUrl(
   reader.readAsDataURL(file);
 }
 
+// ─── Build-Guide Assembler ────────────────────────────────────────────────────
+
+/**
+ * Baut aus dem geparsten Build-Store einen strukturierten deutschen Text,
+ * der als Eingabe für Mistral dient.
+ *
+ * - Skills werden nach activeGemId dedupliziert (gleicher Skill in mehreren Akten → ein Eintrag)
+ * - Support-Gem-Sets werden gemergt
+ * - Begriffe werden via poe2Translator + gem/passives-Datenbank übersetzt
+ */
+function assembleBuildGuideText(
+  buildName: string,
+  author: string,
+  description: string,
+  characterClass: string | null,
+  ascendancy: string,
+  level: number,
+  skillsByAct: BuildSkill[],
+  selectedPassives: string[]
+): string {
+  const lines: string[] = [];
+
+  // Metadaten
+  lines.push(`Build-Name: ${buildName || "Unbekannt"}`);
+  if (author) lines.push(`Autor: ${author}`);
+
+  if (characterClass) {
+    const clsDe = translateTerm(characterClass);
+    const cls = clsDe !== characterClass ? clsDe : characterClass;
+    const ascDe = ascendancy ? translateTerm(ascendancy) : "";
+    const asc = ascDe && ascDe !== ascendancy ? ascDe : ascendancy;
+    lines.push(`Klasse: ${cls}${asc ? ` (${asc})` : ""}`);
+  }
+
+  lines.push(`Level: ${level}`);
+  if (description) lines.push(`Beschreibung: ${description}`);
+
+  // Skills deduplizieren: Map<activeGemId, Set<supportGemId>>
+  const skillMap = new Map<string, Set<string>>();
+  for (const skill of skillsByAct) {
+    if (!skillMap.has(skill.activeGemId)) {
+      skillMap.set(skill.activeGemId, new Set());
+    }
+    for (const supId of skill.supportGemIds) {
+      if (supId) skillMap.get(skill.activeGemId)!.add(supId);
+    }
+  }
+
+  if (skillMap.size > 0) {
+    lines.push("\nSkills & Support-Gems:");
+    for (const [activeId, supportIdSet] of skillMap) {
+      const activeGem = getGemById(activeId);
+      const activeName = activeGem ? activeGem.nameDe : translateSkillId(activeId);
+
+      const supports = [...supportIdSet]
+        .map((supId) => {
+          const supGem = getGemById(supId);
+          return supGem ? supGem.nameDe : translateSkillId(supId);
+        })
+        .filter(Boolean);
+
+      if (supports.length > 0) {
+        lines.push(`- ${activeName} [Supports: ${supports.join(", ")}]`);
+      } else {
+        lines.push(`- ${activeName}`);
+      }
+    }
+  }
+
+  // Passive Notables (dedupliziert, max. 20)
+  const notables: string[] = [];
+  const seen = new Set<string>();
+  for (const id of selectedPassives) {
+    const talent = getPassiveTalentById(id);
+    if (!talent) continue;
+    const name = talent.nameDe || talent.nameEn;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    notables.push(name);
+    if (notables.length >= 20) break;
+  }
+
+  if (notables.length > 0) {
+    lines.push(`\nPassive Notables: ${notables.join(", ")}`);
+  }
+
+  return lines.join("\n");
+}
+
 // ─── Haupt-Komponente ─────────────────────────────────────────────────────────
 
 export default function TranslatePage() {
@@ -239,7 +333,7 @@ export default function TranslatePage() {
 
         // Skills: Array aus Objekten mit activeGemId/id, supportGemIds/supports, act
         if (Array.isArray(json.skills)) {
-          const skills: import("@/types/parser").BuildSkill[] = [];
+          const skills: BuildSkill[] = [];
           for (const s of json.skills) {
             if (!s || typeof s !== "object") continue;
             const obj = s as Record<string, unknown>;
@@ -385,8 +479,63 @@ export default function TranslatePage() {
     setOutput("");
     setSaved(false);
 
-    // Build-Datei-Tab: Komponenten übersetzen lokal via poe2Translator – kein API-Call
-    if (activeTab === "file") return;
+    // Build-Datei-Tab: Guide via Mistral generieren
+    if (activeTab === "file") {
+      if (!buildLoaded) {
+        setError("Bitte zuerst eine .build Datei hochladen.");
+        return;
+      }
+
+      setIsLoading(true);
+
+      const buildText = assembleBuildGuideText(
+        store.buildName,
+        store.author,
+        store.description,
+        store.characterClass,
+        store.ascendancy,
+        store.level,
+        store.skillsByAct,
+        store.selectedPassives
+      );
+
+      try {
+        const res = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "build", buildData: buildText }),
+        });
+
+        if (!res.ok || !res.body) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            (errData as { error?: string }).error ?? `Fehler ${res.status}`
+          );
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let result = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          result += decoder.decode(value, { stream: true });
+          setOutput(result);
+        }
+
+        if (!buildName) {
+          const match = /^##\s+(.+?)$/m.exec(result);
+          if (match) setBuildName(match[1].trim());
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unbekannter Fehler.");
+      } finally {
+        setIsLoading(false);
+      }
+
+      return;
+    }
 
     if (activeTab === "text" && !textInput.trim()) {
       setError("Bitte zuerst einen Build-Guide einfügen.");
@@ -630,6 +779,25 @@ export default function TranslatePage() {
                 <BuildHeader />
                 <SkillsByAct />
                 <PassiveNotables />
+
+                {/* Guide generieren */}
+                <button
+                  onClick={handleTranslate}
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 disabled:cursor-not-allowed px-6 py-3 text-sm font-semibold text-white transition-colors"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Guide wird erstellt…
+                    </>
+                  ) : (
+                    <>
+                      <Languages className="h-4 w-4" />
+                      Guide generieren
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>

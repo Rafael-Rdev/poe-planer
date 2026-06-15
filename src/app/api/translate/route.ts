@@ -76,6 +76,24 @@ function getDictEntries(): Array<[string, string]> {
 
 const SYSTEM_PROMPT = `Du bist ein Übersetzer für Path of Exile 2 Build-Guides. Übersetze den folgenden englischen Text ins Deutsche. Übersetze natürlichsprachliche Beschreibungen, behalte aber Spielbegriffe (Skill-Namen, Item-Namen, Stats) möglichst im englischen Original – die werden später automatisch ersetzt. Antworte NUR mit der deutschen Übersetzung, ohne Erklärungen.`;
 
+const BUILD_GUIDE_SYSTEM_PROMPT = `Du bist ein Path of Exile 2 Experte. Schreibe einen deutschen Spielguide basierend auf diesen Build-Daten.
+Struktur (nutze Markdown-Überschriften ## und ###):
+## Build-Überblick
+3 Sätze: was macht der Build, warum ist er stark, für wen geeignet.
+
+## Skills & Gems
+Für jeden Skill einen eigenen ### Abschnitt: wann einsetzen + welche Support-Gems einsockeln + warum diese Kombination.
+
+## Rotation
+Schritt-für-Schritt wie man den Build spielt (als nummerierte Liste oder Fließtext).
+
+## Top 5 Passive-Punkte
+Welche zuerst holen und warum – priorisiert nach Impact.
+
+Schreibe klar und verständlich für jemanden der den Build noch nicht kennt.
+Nutze die deutschen Begriffe die in den Build-Daten stehen.
+Antworte NUR mit dem Guide, ohne Vorbemerkungen oder Erklärungen.`;
+
 // ─── Regex-Hilfsfunktionen ──────────────────────────────────────────────────
 
 /**
@@ -220,6 +238,22 @@ export async function POST(request: Request) {
     messages = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content },
+    ];
+  } else if (payload.type === "build") {
+    const buildData = typeof payload.buildData === "string" ? payload.buildData.trim() : "";
+    if (!buildData) {
+      return Response.json({ error: "Keine Build-Daten übermittelt." }, { status: 400 });
+    }
+    if (buildData.length > MAX_TEXT_CHARS) {
+      return Response.json(
+        { error: `Build-Daten zu groß (max. ${MAX_TEXT_CHARS.toLocaleString("de-DE")} Zeichen).` },
+        { status: 400 }
+      );
+    }
+    model = "mistral-small-2506";
+    messages = [
+      { role: "system", content: BUILD_GUIDE_SYSTEM_PROMPT },
+      { role: "user", content: buildData },
     ];
   } else {
     return Response.json({ error: "Unbekannter Request-Typ." }, { status: 400 });
