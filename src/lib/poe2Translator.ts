@@ -26,6 +26,11 @@ const typedData = translationsData as TranslationsFile;
  */
 let _combinedDict: Map<string, string> | null = null;
 
+function stripDntPrefix(s: string): string {
+  if (s.startsWith("[DNT] ")) return s.slice(6);
+  return s;
+}
+
 function getCombinedDict(): Map<string, string> {
   if (_combinedDict) return _combinedDict;
 
@@ -53,8 +58,13 @@ function getCombinedDict(): Map<string, string> {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { availableGems } = require("@/data/gems");
     for (const gem of Object.values(availableGems as Record<string, { nameEn: string; nameDe: string }>)) {
-      if (gem.nameEn && gem.nameDe && gem.nameEn !== gem.nameDe && !dict.has(gem.nameEn)) {
-        dict.set(gem.nameEn, gem.nameDe);
+      // "Coming Soon"-Platzhalter überspringen
+      if (gem.nameEn === "Coming Soon") continue;
+      // [DNT]-Prefix aus Schlüssel und Wert entfernen
+      const en = stripDntPrefix(gem.nameEn);
+      const de = stripDntPrefix(gem.nameDe);
+      if (en && de && en !== de && !dict.has(en)) {
+        dict.set(en, de);
       }
     }
   } catch { /* optional */ }
@@ -63,8 +73,11 @@ function getCombinedDict(): Map<string, string> {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { passiveTalents } = require("@/data/passives");
     for (const talent of Object.values(passiveTalents as Record<string, { nameEn: string; nameDe: string }>)) {
-      if (talent.nameEn && talent.nameDe && talent.nameEn !== talent.nameDe && !dict.has(talent.nameEn)) {
-        dict.set(talent.nameEn, talent.nameDe);
+      // [DNT]-Prefix aus Schlüssel und Wert entfernen
+      const en = stripDntPrefix(talent.nameEn);
+      const de = stripDntPrefix(talent.nameDe);
+      if (en && de && en !== de && !dict.has(en)) {
+        dict.set(en, de);
       }
     }
   } catch { /* optional */ }

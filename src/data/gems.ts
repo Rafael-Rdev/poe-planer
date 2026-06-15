@@ -5152,33 +5152,72 @@ export const availableGems: Record<string, Gem> = {
   },
 };
 
+// ─── Hilfsfunktionen zur Datenbereinigung ─────────────────────────
+
+/** Präfix für unfertige Übersetzungen (Do Not Translate). */
+const DNT_PREFIX = "[DNT] ";
+
+/** Entfernt den [DNT]-Prefix aus einem String, falls vorhanden. */
+function stripDntPrefix(s: string): string {
+  if (s.startsWith(DNT_PREFIX)) return s.slice(DNT_PREFIX.length);
+  return s;
+}
+
+/** Prüft, ob eine Gemme ein "Coming Soon"-Platzhalter ist. */
+function isComingSoonGem(g: Gem): boolean {
+  return g.nameEn === "Coming Soon";
+}
+
+/**
+ * Erstellt eine bereinigte Kopie einer Gemme:
+ * - [DNT]-Prefix wird aus allen String-Feldern entfernt.
+ */
+function cleanGem(g: Gem): Gem {
+  return {
+    ...g,
+    nameEn: stripDntPrefix(g.nameEn),
+    nameDe: stripDntPrefix(g.nameDe),
+    effect: stripDntPrefix(g.effect),
+    description: stripDntPrefix(g.description),
+  };
+}
+
 /**
  * Gibt alle Gemmen als Array zurück.
+ * "Coming Soon"-Einträge werden ausgefiltert, [DNT]-Prefix wird entfernt.
  */
 export function getAllGems(): Gem[] {
-  return Object.values(availableGems).filter(
-    (g) => !g.nameEn.startsWith("[DNT]")
-  );
+  return Object.values(availableGems)
+    .filter((g) => !isComingSoonGem(g))
+    .map(cleanGem);
 }
 
 /**
  * Gibt Gemmen nach Farbe gefiltert zurück.
+ * "Coming Soon"-Einträge werden ausgefiltert, [DNT]-Prefix wird entfernt.
  */
 export function getGemsByColor(color: GemColor): Gem[] {
-  return Object.values(availableGems).filter((g) => g.color === color);
+  return Object.values(availableGems)
+    .filter((g) => g.color === color && !isComingSoonGem(g))
+    .map(cleanGem);
 }
 
 /**
  * Gibt Gemmen nach Typ gefiltert zurück.
+ * "Coming Soon"-Einträge werden ausgefiltert, [DNT]-Prefix wird entfernt.
  */
 export function getGemsByType(type: GemType): Gem[] {
-  return Object.values(availableGems).filter((g) => g.type === type);
+  return Object.values(availableGems)
+    .filter((g) => g.type === type && !isComingSoonGem(g))
+    .map(cleanGem);
 }
 
 /**
  * Normalisierter Index (Kleinbuchstaben, ohne Sonderzeichen) für tolerante
  * Lookups. Löst verschiedene ID-Formen desselben Gems auf, z. B.
  * "Explosive Grenade", "ExplosiveGrenade" und "explosivegrenade".
+ *
+ * "Coming Soon"-Einträge werden nicht indiziert.
  */
 let _normGemIndex: Record<string, Gem> | null = null;
 
@@ -5186,10 +5225,12 @@ function getNormGemIndex(): Record<string, Gem> {
   if (_normGemIndex) return _normGemIndex;
   const idx: Record<string, Gem> = {};
   for (const gem of Object.values(availableGems)) {
-    const byId = gem.id.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (byId && !(byId in idx)) idx[byId] = gem;
-    const byName = gem.nameEn.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (byName && !(byName in idx)) idx[byName] = gem;
+    if (isComingSoonGem(gem)) continue;
+    const cleaned = cleanGem(gem);
+    const byId = cleaned.id.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (byId && !(byId in idx)) idx[byId] = cleaned;
+    const byName = cleaned.nameEn.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (byName && !(byName in idx)) idx[byName] = cleaned;
   }
   _normGemIndex = idx;
   return idx;
@@ -5198,10 +5239,16 @@ function getNormGemIndex(): Record<string, Gem> {
 /**
  * Findet eine Gemme anhand ihrer ID. Zuerst O(1)-Direktzugriff, dann
  * toleranter Fallback über den normalisierten Index.
+ *
+ * "Coming Soon"-Einträge werden nicht zurückgegeben (undefined).
+ * [DNT]-Prefix wird aus dem Ergebnis entfernt.
  */
 export function getGemById(id: string): Gem | undefined {
   const direct = availableGems[id];
-  if (direct) return direct;
+  if (direct) {
+    if (isComingSoonGem(direct)) return undefined;
+    return cleanGem(direct);
+  }
   const norm = id.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!norm) return undefined;
   return getNormGemIndex()[norm];

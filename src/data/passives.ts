@@ -8093,16 +8093,45 @@ export const passiveTalents: Record<string, PassiveTalent> = {
   },
 };
 
+// ─── Hilfsfunktionen zur Datenbereinigung ─────────────────────────
+
+/** Präfix für unfertige Übersetzungen (Do Not Translate). */
+const DNT_PREFIX = "[DNT] ";
+
+/** Entfernt den [DNT]-Prefix aus einem String, falls vorhanden. */
+function stripDntPrefix(s: string): string {
+  if (s.startsWith(DNT_PREFIX)) return s.slice(DNT_PREFIX.length);
+  return s;
+}
+
+/**
+ * Erstellt eine bereinigte Kopie eines passiven Talents:
+ * - [DNT]-Prefix wird aus allen String-Feldern entfernt.
+ */
+function cleanPassiveTalent(p: PassiveTalent): PassiveTalent {
+  return {
+    ...p,
+    nameEn: stripDntPrefix(p.nameEn),
+    nameDe: stripDntPrefix(p.nameDe),
+    description: stripDntPrefix(p.description),
+    effect: p.effect ? stripDntPrefix(p.effect) : p.effect,
+  };
+}
+
 /**
  * Gibt alle passiven Talente als Array zurück.
+ * [DNT]-Prefix wird aus allen Namen/Texten entfernt.
  */
 export function getAllPassiveTalents(): PassiveTalent[] {
-  return Object.values(passiveTalents);
+  return Object.values(passiveTalents).map(cleanPassiveTalent);
 }
 
 /**
  * Findet ein passives Talent anhand seiner ID (O(1)).
+ * [DNT]-Prefix wird aus dem Ergebnis entfernt.
  */
 export function getPassiveTalentById(id: string): PassiveTalent | undefined {
-  return passiveTalents[id];
+  const direct = passiveTalents[id];
+  if (!direct) return undefined;
+  return cleanPassiveTalent(direct);
 }
