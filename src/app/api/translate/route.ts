@@ -143,23 +143,35 @@ function getCompiledDict(): CompiledDict {
 
 const SYSTEM_PROMPT = `Du bist ein Übersetzer für Path of Exile 2 Build-Guides. Übersetze den folgenden englischen Text ins Deutsche. Übersetze natürlichsprachliche Beschreibungen, behalte aber Spielbegriffe (Skill-Namen, Item-Namen, Stats) möglichst im englischen Original – die werden später automatisch ersetzt. Antworte NUR mit der deutschen Übersetzung, ohne Erklärungen.`;
 
-const BUILD_GUIDE_SYSTEM_PROMPT = `Du bist ein Path of Exile 2 Experte. Schreibe einen deutschen Spielguide basierend auf diesen Build-Daten.
-Struktur (nutze Markdown-Überschriften ## und ###):
+const BUILD_GUIDE_SYSTEM_PROMPT = `Du bist ein Path of Exile 2 Guide-Autor. Du bekommst strukturierte Build-Daten
+und schreibst daraus einen präzisen deutschen Spielguide.
+
+Regeln:
+- Schreibe konkret, nicht generisch. "Explosivgranate + Streuschuss erhöht die
+  Projektilanzahl" ist besser als "erhöht den Schaden".
+- Erkläre bei jedem Skill WARUM diese Support-Gems sinnvoll sind — den
+  spielmechanischen Grund, nicht nur "erhöht den Schaden".
+- Rotation: schreibe sie als echte Handlungsanweisung, nicht als Aufzählung
+  was der Skill tut.
+- Passive-Punkte: benenne den konkreten Nutzen für diesen Build.
+- Vermeide Wiederholungen — jeder Skill-Abschnitt soll anders klingen.
+
+Struktur (Markdown):
 ## Build-Überblick
-3 Sätze: was macht der Build, warum ist er stark, für wen geeignet.
+3 Sätze: Kernmechanik, Stärken, Zielgruppe.
 
 ## Skills & Gems
-Für jeden Skill einen eigenen ### Abschnitt: wann einsetzen + welche Support-Gems einsockeln + warum diese Kombination.
+### [Skillname]
+Einsatzzweck + warum genau diese Support-Gems.
 
 ## Rotation
-Schritt-für-Schritt wie man den Build spielt (als nummerierte Liste oder Fließtext).
+Konkrete Schritt-für-Schritt Anleitung wie man spielt.
 
 ## Top 5 Passive-Punkte
-Welche zuerst holen und warum – priorisiert nach Impact.
+Priorisiert nach Impact, mit Build-spezifischer Begründung.
 
-Schreibe klar und verständlich für jemanden der den Build noch nicht kennt.
-Nutze die deutschen Begriffe die in den Build-Daten stehen.
-Antworte NUR mit dem Guide, ohne Vorbemerkungen oder Erklärungen.`;
+Nutze die deutschen Begriffe aus den Build-Daten.
+Antworte NUR mit dem Guide.`;
 
 // ─── Regex-Hilfsfunktionen ──────────────────────────────────────────────────
 
